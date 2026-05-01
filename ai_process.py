@@ -14,13 +14,22 @@ load_dotenv()
 class AIProcessor:
     """AI 处理器"""
 
-    SYSTEM_PROMPT = """你是语言学习助手。对输入的字幕列表，每条返回：
-- translation: 中文翻译
-- notes: 1-3个重点词汇及释义（格式：词汇-释义，用逗号分隔）
-- skip: 句子过短或无意义则为true
+    SYSTEM_PROMPT = """你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
 
-只返回 JSON，不要其他内容。格式：
-[{"translation": "...", "notes": "...", "skip": false}, ...]"""
+判断标准：
+- 有明确的语法知识点（如时态、从句、虚拟语气等）
+- 有实用表达或固定搭配
+- 对话内容有意义（非简单寒暄如'okay', 'yeah', 'uh-huh'等）
+- 有文化背景或情境意义
+
+返回格式（JSON数组）：
+[{"include": true/false, "reason": "简短原因", "translation": "中文翻译", "notes": "重点词汇-释义"}, ...]
+
+注意：
+- include=true 表示值得加入学习
+- include=false 时 reason 说明原因（如：纯简单应答、无知识价值）
+- 只对 include=true 的句子提供 translation 和 notes
+- 保持原文顺序输出"""
 
     def __init__(self, api_key: str = None, base_url: str = "https://api.deepseek.com"):
         """
@@ -124,31 +133,22 @@ def process_subtitles_with_ai(subtitles: list, api_key: str = None) -> list[dict
     for i, sub in enumerate(subtitle_dicts):
         if i < len(results) and isinstance(results[i], dict):
             result = results[i]
-            processed.append({
-                "index": sub["index"],
-                "start_sec": sub["start_sec"],
-                "end_sec": sub["end_sec"],
-                "text": sub["text"],
-                "translation": result.get("translation", ""),
-                "notes": result.get("notes", ""),
-                "skip": result.get("skip", False)
-            })
-        else:
-            processed.append({
-                "index": sub["index"],
-                "start_sec": sub["start_sec"],
-                "end_sec": sub["end_sec"],
-                "text": sub["text"],
-                "translation": "",
-                "notes": "",
-                "skip": True
-            })
+            include = result.get("include", False)
+            if include:
+                processed.append({
+                    "index": sub["index"],
+                    "start_sec": sub["start_sec"],
+                    "end_sec": sub["end_sec"],
+                    "text": sub["text"],
+                    "translation": result.get("translation", ""),
+                    "notes": result.get("notes", ""),
+                    "reason": result.get("reason", "")
+                })
+        continue
 
-    # 过滤 skip 的项目
-    filtered = [p for p in processed if not p.get("skip", False)]
-    print(f"AI 处理完成，{len(filtered)}/{len(processed)} 条保留")
+    print(f"AI 处理完成，{len(processed)}/{len(subtitle_dicts)} 条有学习价值")
 
-    return filtered
+    return processed
 
 
 if __name__ == '__main__':
