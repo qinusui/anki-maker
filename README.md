@@ -2,6 +2,8 @@
 
 将视频 + 字幕文件自动转换为可导入 Anki 的牌组。
 
+**定位：辅助学习英语的软件** — AI 智能筛选有学习价值的句子，过滤无意义的简单对话（如 ok, yeah, uh-huh 等），每集视频约筛选 10-20 条高质量学习内容。
+
 ## 功能
 
 - 解析 `.srt` 字幕文件，提取时间轴和文本
@@ -64,11 +66,13 @@ python main.py input/video.mp4 input/subtitle.srt output
     ↓
 1. 解析字幕 → 字幕列表（开始/结束时间 + 文本）
     ↓
-2. DeepSeek API → 翻译 + 词汇注释
+2. AI 筛选 → 过滤无意义对话，保留有学习价值的句子
     ↓
-3. ffmpeg → 切音频 + 截中间帧
+3. DeepSeek API → 翻译 + 词汇注释
     ↓
-4. genanki → 打包 .apkg
+4. ffmpeg → 切音频 + 截中间帧（仅处理筛选后的句子）
+    ↓
+5. genanki → 打包 .apkg
     ↓
 导入 Anki 使用
 ```
