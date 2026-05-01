@@ -61,29 +61,13 @@ def do_process(table_data, video_path, subtitle_path, output_dir):
         return
 
     try:
-        # 解析 table_data（可能是 DataFrame, list of lists, 或 list of dicts）
+        # 解析 table_data（可能是 DataFrame）
         selected_texts = []
 
-        print(f"[DEBUG] type(table_data): {type(table_data)}")
-
         if hasattr(table_data, 'iterrows'):  # pandas DataFrame
-            print("[DEBUG] processing as DataFrame")
             for _, row in table_data.iterrows():
-                first_col = row.iloc[0]
-                print(f"[DEBUG] first_col={first_col}, type={type(first_col)}")
-                if first_col:
+                if row.iloc[0]:
                     selected_texts.append(row.iloc[1])
-        elif isinstance(table_data, list):
-            print("[DEBUG] processing as list")
-            for item in table_data:
-                if isinstance(item, list) and len(item) >= 2:
-                    if item[0]:
-                        selected_texts.append(item[1])
-                elif isinstance(item, dict):
-                    if item.get("选择", item.get("checked", True)):
-                        selected_texts.append(item.get("原文", item.get("text", "")))
-
-        print(f"[DEBUG] selected_texts count: {len(selected_texts)}")
 
         if not selected_texts:
             yield "没有选中的句子"
@@ -99,16 +83,12 @@ def do_process(table_data, video_path, subtitle_path, output_dir):
                     selected_indices.add(sub.index)
                     break
 
-        print(f"[DEBUG] matched indices: {selected_indices}")
-
         if not selected_indices:
             yield "匹配失败，没有选中句子"
             return
 
         all_subs = parse_srt(subtitle_path)
         selected = [s for s in all_subs if s.index in selected_indices]
-
-        print(f"[DEBUG] selected subtitles: {len(selected)}")
 
         yield f"已选择 {len(selected)} 条..."
 
