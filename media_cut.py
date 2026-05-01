@@ -150,37 +150,31 @@ def process_media_items(
         audio_path = str(audio_dir / audio_name)
         screenshot_path = str(screenshot_dir / screenshot_name)
 
-        # 合并为一次 ffmpeg 调用，减少视频打开次数
-        cmd = [
-            get_ffmpeg_path(),
-            "-y",
-            "-ss", f"{start:.3f}",
-            "-t", f"{duration:.3f}",
+        # 分别调用 ffmpeg，确保 -ss 在 -i 之前（输入seek更快）
+        audio_ok = subprocess.run([
+            get_ffmpeg_path(), "-y",
+            "-ss", f"{start:.3f}", "-t", f"{duration:.3f}",
             "-i", video_path,
-            # 音频输出
             "-vn", "-acodec", "libmp3lame", "-q:a", "2", "-ar", "44100",
-            audio_path,
-            # 截图输出（取中间帧）
+            audio_path
+        ], capture_output=True, timeout=max(30, duration * 2)).returncode == 0
+
+        screenshot_ok = subprocess.run([
+            get_ffmpeg_path(), "-y",
             "-ss", f"{mid:.3f}",
-            "-vframes", "1", "-q:v", "2", "-update", "1",
+            "-i", video_path,
+            "-vframes", "1", "-q:v", "2",
             screenshot_path
-        ]
+        ], capture_output=True, timeout=30).returncode == 0
 
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=max(30, duration * 2))
-            audio_ok = Path(audio_path).exists()
-            screenshot_ok = Path(screenshot_path).exists()
-
-            if audio_ok:
-                return MediaItem(
-                    index=idx,
-                    start_sec=start,
-                    end_sec=end,
-                    audio_path=audio_path,
-                    screenshot_path=screenshot_path if screenshot_ok else ""
-                )
-        except subprocess.TimeoutExpired:
-            pass
+        if audio_ok:
+            return MediaItem(
+                index=idx,
+                start_sec=start,
+                end_sec=end,
+                audio_path=audio_path,
+                screenshot_path=screenshot_path if screenshot_ok else ""
+            )
         return None
 
     print(f"开始媒体处理，{len(items)} 条，{num_workers} 并发...")
