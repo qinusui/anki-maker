@@ -35,24 +35,6 @@ def load_subtitles(video_path, subtitle_path, min_duration):
         return None, f"加载失败: {e}", ""
 
 
-def select_all(table_data):
-    if table_data is None:
-        return None
-    return [[True] + row[1:] for row in table_data]
-
-
-def deselect_all(table_data):
-    if table_data is None:
-        return None
-    return [[False] + row[1:] for row in table_data]
-
-
-def count_selected(table_data):
-    if table_data is None:
-        return "已选择: 0 条"
-    return f"已选择: {sum(1 for row in table_data if row[0])} 条"
-
-
 def format_time(seconds):
     h = int(seconds // 3600)
     m = int((seconds % 3600) // 60)
@@ -126,7 +108,6 @@ def build_ui():
             load_btn = gr.Button("加载", variant="primary")
 
         status = gr.Textbox(label="状态", lines=1)
-        selected_count = gr.Textbox(label="已选择", lines=1)
 
         table = gr.DataFrame(
             headers=["选择", "原文", "开始(s)", "结束(s)"],
@@ -134,10 +115,6 @@ def build_ui():
             interactive=True,
             visible=False
         )
-
-        with gr.Row():
-            all_btn = gr.Button("全选")
-            none_btn = gr.Button("取消全选")
 
         output_path = gr.Textbox(value="./output", label="输出目录")
         process_btn = gr.Button("处理选中", variant="primary", size="lg")
@@ -147,15 +124,11 @@ def build_ui():
         load_btn.click(
             load_subtitles,
             [video_file, subtitle_file, min_dur],
-            [table, status, selected_count]
+            [table, status, status]
         ).then(
             lambda: gr.update(visible=True),
             outputs=[table]
         )
-
-        all_btn.click(select_all, [table], [table])
-        none_btn.click(deselect_all, [table], [table])
-        table.change(count_selected, [table], [selected_count])
 
         process_btn.click(
             do_process,
