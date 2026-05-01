@@ -17,10 +17,10 @@ def load_subtitles(video_path, subtitle_path, min_duration):
     _subtitles_cache = []
 
     if not subtitle_path:
-        return None, "请提供字幕文件", ""
+        return None, "请提供字幕文件"
 
     if not Path(subtitle_path).exists():
-        return None, f"文件不存在: {subtitle_path}", ""
+        return None, f"文件不存在"
 
     try:
         subtitles = parse_srt(subtitle_path)
@@ -29,10 +29,10 @@ def load_subtitles(video_path, subtitle_path, min_duration):
 
         rows = [[True, sub.text, round(sub.start_sec, 2), round(sub.end_sec, 2)] for sub in subtitles]
 
-        return rows, f"加载了 {len(rows)} 条字幕", f"已选择: {len(rows)} 条"
+        return rows, f"加载了 {len(rows)} 条字幕 (默认全选)"
 
     except Exception as e:
-        return None, f"加载失败: {e}", ""
+        return None, f"加载失败: {e}"
 
 
 def format_time(seconds):
@@ -51,7 +51,7 @@ def do_process(table_data, video_path, subtitle_path, output_dir):
         yield "请上传视频文件"
         return
 
-    if not subtitle_path or not Path(subtitle_path).exists():
+    if not subtitle_path:
         yield "请上传字幕文件"
         return
 
@@ -60,20 +60,27 @@ def do_process(table_data, video_path, subtitle_path, output_dir):
         return
 
     try:
+        yield f"正在处理 {len(table_data)} 条..."
+
         # 获取选中的字幕索引
         selected_indices = set()
-        for i, row in enumerate(table_data):
-            if row[0] and i < len(_subtitles_cache):
-                selected_indices.add(_subtitles_cache[i].index)
+        for row in table_data:
+            if row[0]:  # 选择列
+                # 从原文中匹配
+                text = row[1]
+                for sub in _subtitles_cache:
+                    if sub.text == text:
+                        selected_indices.add(sub.index)
+                        break
 
         if not selected_indices:
             yield "没有选中的句子"
             return
 
+        yield f"已选择 {len(selected_indices)} 条..."
+
         all_subs = parse_srt(subtitle_path)
         selected = [s for s in all_subs if s.index in selected_indices]
-
-        yield f"已选择 {len(selected)} 条..."
 
         output_path = Path(output_dir) if output_dir else Path("./output")
         output_path.mkdir(parents=True, exist_ok=True)
@@ -124,7 +131,7 @@ def build_ui():
         load_btn.click(
             load_subtitles,
             [video_file, subtitle_file, min_dur],
-            [table, status, status]
+            [table, status]
         ).then(
             lambda: gr.update(visible=True),
             outputs=[table]
