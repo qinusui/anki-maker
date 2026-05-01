@@ -14,17 +14,22 @@ load_dotenv()
 class AIProcessor:
     """AI 处理器"""
 
-    SYSTEM_PROMPT = """你是英语学习助手。对输入的字幕列表，每条判断是否值得作为学习材料：
+    SYSTEM_PROMPT = """你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
 
-判断标准（放宽标准，宁可多选不要漏选）：
-- 有实用表达或固定搭配 → 选
-- 有语法知识点（时态、从句等）→ 选
-- 是有意义的长对话（超过5个词）→ 选
-- 纯简单应答如 'okay', 'yeah', 'uh-huh', 'oh' → 不选
-- 单个词或短语 → 不选
+判断标准：
+- 有明确的语法知识点（如时态、从句、虚拟语气等）
+- 有实用表达或固定搭配
+- 对话内容有意义（非简单寒暄如'okay', 'yeah', 'uh-huh'等）
+- 有文化背景或情境意义
 
 返回格式（JSON数组）：
-[{"include": true/false, "translation": "中文翻译", "notes": "词汇-释义"}, ...]"""
+[{"include": true/false, "reason": "简短原因", "translation": "中文翻译", "notes": "重点词汇-释义"}, ...]
+
+注意：
+- include=true 表示值得加入学习
+- include=false 时 reason 说明原因（如：纯简单应答、无知识价值）
+- 只对 include=true 的句子提供 translation 和 notes
+- 保持原文顺序输出"""
 
     def __init__(self, api_key: str = None, base_url: str = "https://api.deepseek.com"):
         """
