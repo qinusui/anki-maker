@@ -8,110 +8,49 @@ from pathlib import Path
 from parse_srt import parse_srt, filter_short_subtitles
 from main import run as process_cards
 
-
-# 全局变量存储当前加载的字幕
 _subtitles_cache = []
 
 
-def load_subtitles(video_path: str, subtitle_path: str, min_duration: float = 1.0):
+def load_subtitles(video_path, subtitle_path, min_duration):
     """加载字幕"""
     global _subtitles_cache
+    _subtitles_cache = []
 
     if not subtitle_path:
-        return None, "请提供字幕文件路径", None, None
+        return None, "请提供字幕文件", ""
 
     if not Path(subtitle_path).exists():
-        return None, f"字幕文件不存在: {subtitle_path}", None, None
+        return None, f"文件不存在: {subtitle_path}", ""
 
     try:
         subtitles = parse_srt(subtitle_path)
         subtitles = filter_short_subtitles(subtitles, min_duration)
         _subtitles_cache = subtitles
 
-        # 构建表格
-        headers = ["选择", "原文", "开始", "结束"]
-        rows = []
-        for sub in subtitles:
-            rows.append([
-                True,  # 默认选中
-                sub.text,
-                round(sub.start_sec, 2),
-                round(sub.end_sec, 2)
-            ])
+        rows = [[True, sub.text, round(sub.start_sec, 2), round(sub.end_sec, 2)] for sub in subtitles]
 
-        return headers, rows, f"共加载 {len(rows)} 条字幕", len(rows)
+        return rows, f"加载了 {len(rows)} 条字幕", f"已选择: {len(rows)} 条"
 
     except Exception as e:
-        return None, f"加载失败: {e}", None, None
+        return None, f"加载失败: {e}", ""
 
 
 def select_all(table_data):
-    """全选"""
     if table_data is None:
         return None
     return [[True] + row[1:] for row in table_data]
 
 
 def deselect_all(table_data):
-    """取消全选"""
     if table_data is None:
         return None
     return [[False] + row[1:] for row in table_data]
 
 
-def process_selected(table_data, video_path, subtitle_path, output_dir):
-    """处理选中的句子"""
-    global _subtitles_cache
-
-    if table_data is None or len(table_data) == 0:
-        yield "请先加载字幕"
-        return
-
-    if not video_path:
-        yield "请上传视频文件"
-        return
-
-    if not subtitle_path or not Path(subtitle_path).exists():
-        yield "请上传字幕文件"
-        return
-
-    try:
-        # 获取选中的索引
-        selected_indices = set()
-        for i, row in enumerate(table_data):
-            if row[0]:  # 选择列
-                if i < len(_subtitles_cache):
-                    selected_indices.add(_subtitles_cache[i].index)
-
-        if not selected_indices:
-            yield "没有选中的句子"
-            return
-
-        yield f"选中 {len(selected_indices)} 条..."
-        all_subtitles = parse_srt(subtitle_path)
-        selected_subtitles = [s for s in all_subtitles if s.index in selected_indices]
-
-        # 保存临时字幕文件
-        output_path = Path(output_dir) if output_dir else Path("./output")
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        temp_srt = output_path / "temp_selected.srt"
-        with open(temp_srt, "w", encoding="utf-8") as f:
-            for sub in selected_subtitles:
-                f.write(f"{sub.index}\n")
-                f.write(f"{format_time(sub.start_sec)} --> {format_time(sub.end_sec)}\n")
-                f.write(f"{sub.text}\n\n")
-
-        yield "正在 AI 筛选..."
-        yield "正在切割媒体..."
-        yield "正在打包..."
-
-        result = process_cards(video_path, str(temp_srt), str(output_path))
-
-        yield f"完成！牌组: {result}"
-
-    except Exception as e:
-        yield f"处理失败: {e}"
+def count_selected(table_data):
+    if table_data is None:
+        return "已选择: 0 条"
+    return f"已选择: {sum(1 for row in table_data if row[0])} 条"
 
 
 def format_time(seconds):
@@ -122,21 +61,74 @@ def format_time(seconds):
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-def create_ui():
+def do_process(table_data, video_path, subtitle_path, output_dir):
+    """处理选中的句子"""
+    global _subtitles_cache
+
+    if not video_path:
+        yield "请上传视频文件"
+        return
+
+    if not subtitle_path or not Path(subtitle_path).exists():
+        yield "请上传字幕文件"
+        return
+
+    if table_data is None or len(table_data) == 0:
+        yield "请先加载字幕"
+        return
+
+    try:
+        # 获取选中的字幕索引
+        selected_indices = set()
+        for i, row in enumerate(table_data):
+            if row[0] and i < len(_subtitles_cache):
+                selected_indices.add(_subtitles_cache[i].index)
+
+        if not selected_indices:
+            yield "没有选中的句子"
+            return
+
+        all_subs = parse_srt(subtitle_path)
+        selected = [s for s in all_subs if s.index in selected_indices]
+
+        yield f"已选择 {len(selected)} 条..."
+
+        output_path = Path(output_dir) if output_dir else Path("./output")
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        temp_srt = output_path / "temp_selected.srt"
+        with open(temp_srt, "w", encoding="utf-8") as f:
+            for sub in selected:
+                f.write(f"{sub.index}\n{format_time(sub.start_sec)} --> {format_time(sub.end_sec)}\n{sub.text}\n\n")
+
+        yield "正在 AI 筛选..."
+        yield "正在切割媒体..."
+        yield "正在打包..."
+
+        result = process_cards(video_path, str(temp_srt), str(output_path))
+        yield f"完成: {result}"
+
+    except Exception as e:
+        yield f"失败: {e}"
+
+
+def build_ui():
     with gr.Blocks(title="Anki 卡片生成器") as app:
+
         gr.Markdown("# Anki 卡片生成器\n辅助学习英语")
 
         with gr.Row():
-            video_input = gr.File(label="视频文件", file_types=[".mp4", ".mkv", ".avi"])
-            subtitle_input = gr.File(label="字幕文件", file_types=[".srt"])
+            video_file = gr.File(label="视频", file_types=[".mp4", ".mkv", ".avi"])
+            subtitle_file = gr.File(label="字幕", file_types=[".srt"])
 
         with gr.Row():
-            min_duration = gr.Slider(0.5, 5, value=1.0, step=0.5, label="最短时长(秒)")
-            load_btn = gr.Button("加载字幕", variant="primary")
+            min_dur = gr.Slider(0.5, 5, value=1.0, step=0.5, label="最短时长(秒)")
+            load_btn = gr.Button("加载", variant="primary")
 
-        status_msg = gr.Textbox(label="状态", lines=1)
+        status = gr.Textbox(label="状态", lines=1)
+        selected_count = gr.Textbox(label="已选择", lines=1)
 
-        table_output = gr.DataFrame(
+        table = gr.DataFrame(
             headers=["选择", "原文", "开始(s)", "结束(s)"],
             datatype=["bool", "str", "number", "number"],
             interactive=True,
@@ -144,46 +136,35 @@ def create_ui():
         )
 
         with gr.Row():
-            select_all_btn = gr.Button("全选")
-            deselect_all_btn = gr.Button("取消全选")
+            all_btn = gr.Button("全选")
+            none_btn = gr.Button("取消全选")
 
-        with gr.Row():
-            output_dir = gr.Textbox(value="./output", label="输出目录")
+        output_path = gr.Textbox(value="./output", label="输出目录")
+        process_btn = gr.Button("处理选中", variant="primary", size="lg")
+        result = gr.Textbox(label="结果", lines=3, visible=False)
 
-        process_btn = gr.Button("处理选中的句子", variant="primary", size="lg")
-        process_status = gr.Textbox(label="处理进度", lines=5, visible=False)
-
-        # 事件
+        # 事件绑定
         load_btn.click(
-            fn=load_subtitles,
-            inputs=[video_input, subtitle_input, min_duration],
-            outputs=[table_output, status_msg, table_output]
+            load_subtitles,
+            [video_file, subtitle_file, min_dur],
+            [table, status, selected_count]
         ).then(
-            fn=lambda: gr.update(visible=True),
-            outputs=[table_output]
+            lambda: gr.update(visible=True),
+            outputs=[table]
         )
 
-        select_all_btn.click(
-            fn=select_all,
-            inputs=[table_output],
-            outputs=[table_output]
-        )
-
-        deselect_all_btn.click(
-            fn=deselect_all,
-            inputs=[table_output],
-            outputs=[table_output]
-        )
+        all_btn.click(select_all, [table], [table])
+        none_btn.click(deselect_all, [table], [table])
+        table.change(count_selected, [table], [selected_count])
 
         process_btn.click(
-            fn=process_selected,
-            inputs=[table_output, video_input, subtitle_input, output_dir],
-            outputs=[process_status]
+            do_process,
+            [table, video_file, subtitle_file, output_path],
+            [result]
         )
 
     return app
 
 
 if __name__ == "__main__":
-    app = create_ui()
-    app.launch(server_name="0.0.0.0", server_port=7860, inbrowser=True)
+    build_ui().launch(server_name="0.0.0.0", server_port=7860, inbrowser=True)
