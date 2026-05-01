@@ -15,37 +15,60 @@ from pack_apkg import create_apkg
 
 def run(
     video_path: str,
-    subtitle_path: str,
-    output_dir: str,
+    subtitle_path: str = None,
+    output_dir: str = "./output",
     api_key: str = None,
     min_duration: float = 1.0,
-    num_workers: int = 8
+    num_workers: int = 8,
+    whisper_model: str = "base",
+    language: str = None,
+    force_transcribe: bool = False
 ) -> str:
     """
     运行完整流程
 
     Args:
         video_path: 视频文件路径
-        subtitle_path: 字幕文件路径
+        subtitle_path: 字幕文件路径（可选，不提供则自动转录）
         output_dir: 输出目录
         api_key: DeepSeek API Key
         min_duration: 最短字幕时长（秒）
         num_workers: 并行处理数
-
-    Returns:
-        生成的 .apkg 文件路径
+        whisper_model: Whisper 模型 (tiny, base, small, medium, large)
+        language: 视频语言代码，None 则自动检测
+        force_transcribe: 强制使用 Whisper 转录（忽略已有字幕文件）
     """
     video_path = Path(video_path)
-    subtitle_path = Path(subtitle_path)
+    subtitle_path = Path(subtitle_path) if subtitle_path else None
     output_dir = Path(output_dir)
 
     print("=" * 50)
     print("Anki 卡片生成器")
     print("=" * 50)
     print(f"视频: {video_path.name}")
-    print(f"字幕: {subtitle_path.name}")
+    print(f"字幕: {subtitle_path.name if subtitle_path else '无（将自动转录）'}")
     print(f"输出: {output_dir}")
     print()
+
+    # Step 0: 检查是否需要转录
+    need_transcribe = force_transcribe or (subtitle_path is None or not subtitle_path.exists())
+
+    if need_transcribe:
+        print("[0/5] Whisper 自动转录...")
+        from whisper_transcribe import transcribe_video, save_as_srt
+
+        segments = transcribe_video(
+            str(video_path),
+            model_name=whisper_model,
+            language=language
+        )
+        print(f"  转录完成，共 {len(segments)} 段")
+
+        # 保存为 SRT 供后续使用
+        temp_srt = output_dir / "temp_transcribed.srt"
+        temp_srt.parent.mkdir(parents=True, exist_ok=True)
+        save_as_srt(segments, str(temp_srt))
+        subtitle_path = temp_srt
 
     # Step 1: 解析字幕
     print("[1/5] 解析字幕文件...")
@@ -107,17 +130,29 @@ def run(
 
 def main():
     """命令行入口"""
-    if len(sys.argv) < 3:
-        print("用法: python main.py <视频文件> <字幕文件> [输出目录]")
-        print("  输出目录默认: ./output")
-        sys.exit(1)
+    import argparse
 
-    video_path = sys.argv[1]
-    subtitle_path = sys.argv[2]
-    output_dir = sys.argv[3] if len(sys.argv) > 3 else "./output"
+    parser = argparse.ArgumentParser(description="Anki 卡片生成器")
+    parser.add_argument("video", help="视频文件路径")
+    parser.add_argument("subtitle", nargs="?", default=None, help="字幕文件路径（不提供则自动用 Whisper 转录）")
+    parser.add_argument("output", nargs="?", default="./output", help="输出目录")
+    parser.add_argument("--model", "-m", default="base", choices=["tiny", "base", "small", "medium", "large"],
+                        help="Whisper 模型大小 (默认: base)")
+    parser.add_argument("--language", "-l", default=None, help="视频语言代码，如 en, zh")
+    parser.add_argument("--force-transcribe", "-t", action="store_true",
+                        help="强制使用 Whisper 转录，忽略已有字幕")
+
+    args = parser.parse_args()
 
     try:
-        run(video_path, subtitle_path, output_dir)
+        run(
+            args.video,
+            args.subtitle,
+            args.output,
+            whisper_model=args.model,
+            language=args.language,
+            force_transcribe=args.force_transcribe
+        )
     except Exception as e:
         print(f"\n错误: {e}")
         sys.exit(1)

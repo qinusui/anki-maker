@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m 'AI智能筛选有学习价值的句子 *)",
+      "Bash(git push *)"
+    ]
+  }
+}
