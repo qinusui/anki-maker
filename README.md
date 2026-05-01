@@ -29,7 +29,7 @@ anki_maker/
 ## 安装依赖
 
 ```bash
-pip install openai genanki pysrt
+pip install openai genanki pysrt openai-whisper python-dotenv
 ```
 
 需要提前安装 ffmpeg（添加到 PATH）。
