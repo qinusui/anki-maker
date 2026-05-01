@@ -1,0 +1,222 @@
+"""
+打包模块 - 使用 genanki 生成可导入 Anki 的 .apkg 文件
+"""
+
+import genanki
+import hashlib
+import os
+from pathlib import Path
+from dataclasses import dataclass
+
+
+@dataclass
+class CardData:
+    """卡片数据"""
+    index: int
+    sentence: str
+    translation: str
+    notes: str
+    audio_path: str
+    screenshot_path: str
+
+
+def generate_model_id(name: str) -> int:
+    """
+    根据名称生成稳定的模型 ID
+    """
+    hash_val = hashlib.md5(name.encode()).digest()
+    return int.from_bytes(hash_val[:4], 'big') & 0x7FFFFFFF
+
+
+def create_deck(
+    deck_name: str,
+    cards: list[CardData],
+    audio_dir: str = None,
+    screenshot_dir: str = None
+) -> genanki.Deck:
+    """
+    创建 Anki 牌组
+
+    Args:
+        deck_name: 牌组名称
+        cards: 卡片数据列表
+        audio_dir: 音频目录（用于相对路径）
+        screenshot_dir: 截图目录（用于相对路径）
+
+    Returns:
+        genanki.Deck 对象
+    """
+    model_id = generate_model_id("电影字幕卡_" + deck_name)
+
+    # 创建模型
+    model = genanki.Model(
+        model_id=model_id,
+        name='电影字幕卡',
+        fields=[
+            {'name': 'Screenshot'},
+            {'name': 'Audio'},
+            {'name': 'Sentence'},
+            {'name': 'Translation'},
+            {'name': 'Notes'},
+        ],
+        templates=[{
+            'name': 'Card 1',
+            'qfmt': '{{Screenshot}}<br>{{Audio}}',
+            'afmt': '{{FrontSide}}<hr id="answer">{{Sentence}}<br>{{Translation}}<br>{{Notes}}',
+        }]
+    )
+
+    # 创建牌组
+    deck = genanki.Deck(
+        deck_id=generate_model_id(deck_name),
+        name=deck_name
+    )
+
+    # 添加卡片
+    for card in cards:
+        # 音频文件使用相对路径
+        audio_name = os.path.basename(card.audio_path) if card.audio_path else ""
+        screenshot_name = os.path.basename(card.screenshot_path) if card.screenshot_path else ""
+
+        # 构建字段
+        screenshot_field = f'<img src="{screenshot_name}">' if screenshot_name else ""
+        audio_field = f'[sound:{audio_name}]' if audio_name else ""
+
+        note = genanki.Note(
+            model=model,
+            fields=[
+                screenshot_field,
+                audio_field,
+                card.sentence,
+                card.translation,
+                card.notes
+            ]
+        )
+        deck.add_note(note)
+
+    return deck
+
+
+def save_deck_with_media(
+    deck: genanki.Deck,
+    output_path: str,
+    audio_files: list[str] = None,
+    screenshot_files: list[str] = None,
+    audio_dir: str = None,
+    screenshot_dir: str = None
+):
+    """
+    保存牌组并打包媒体文件
+
+    Args:
+        deck: genanki.Deck 对象
+        output_path: 输出 .apkg 路径
+        audio_files: 音频文件列表（完整路径）
+        screenshot_files: 截图文件列表（完整路径）
+        audio_dir: 音频源目录
+        screenshot_dir: 截图源目录
+    """
+    # 创建临时目录存放媒体文件
+    import tempfile
+    import shutil
+
+    temp_dir = Path(tempfile.mkdtemp())
+
+    # 复制媒体文件到临时目录
+    copied_files = []
+
+    def copy_to_media(filename: str, source_dir: str = None) -> str:
+        if not filename:
+            return None
+        source = Path(source_dir or "") / filename if source_dir else Path(filename)
+        if source.exists():
+            dest = temp_dir / Path(filename).name
+            shutil.copy2(source, dest)
+            copied_files.append(str(dest))
+            return str(Path(filename).name)
+        return None
+
+    # 处理音频文件
+    if audio_files:
+        for af in audio_files:
+            copy_to_media(os.path.basename(af), audio_dir)
+
+    # 处理截图文件
+    if screenshot_files:
+        for sf in screenshot_files:
+            copy_to_media(os.path.basename(sf), screenshot_dir)
+
+    # 写入包文件
+    package = genanki.Package(deck)
+    package.media_files = copied_files
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    package.write_to_file(str(output))
+
+    # 清理临时目录
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def create_apkg(
+    video_name: str,
+    cards: list[dict],
+    output_dir: str,
+    audio_dir: str,
+    screenshot_dir: str
+) -> str:
+    """
+    创建完整的 .apkg 文件
+
+    Args:
+        video_name: 视频名称（用于牌组名）
+        cards: 卡片数据列表
+        output_dir: 输出目录
+        audio_dir: 音频目录
+        screenshot_dir: 截图目录
+
+    Returns:
+        输出的 .apkg 文件路径
+    """
+    # 牌组名称
+    deck_name = Path(video_name).stem
+
+    # 构建 CardData 列表
+    card_data_list = [
+        CardData(
+            index=c.get("index", i),
+            sentence=c.get("text", ""),
+            translation=c.get("translation", ""),
+            notes=c.get("notes", ""),
+            audio_path=c.get("audio_path", ""),
+            screenshot_path=c.get("screenshot_path", "")
+        )
+        for i, c in enumerate(cards)
+    ]
+
+    # 创建牌组
+    deck = create_deck(deck_name, card_data_list)
+
+    # 收集媒体文件
+    audio_files = [c.audio_path for c in card_data_list if c.audio_path]
+    screenshot_files = [c.screenshot_path for c in card_data_list if c.screenshot_path]
+
+    # 保存
+    output_path = Path(output_dir) / f"{deck_name}.apkg"
+    save_deck_with_media(
+        deck,
+        str(output_path),
+        audio_files=audio_files,
+        screenshot_files=screenshot_files,
+        audio_dir=audio_dir,
+        screenshot_dir=screenshot_dir
+    )
+
+    print(f"牌组已生成: {output_path}")
+    return str(output_path)
+
+
+if __name__ == '__main__':
+    # 测试
+    deck = create_deck("测试牌组", [])
+    print(f"测试牌组创建成功，ID: {deck.deck_id}")
