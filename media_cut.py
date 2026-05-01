@@ -142,7 +142,9 @@ def process_media_items(
         start = item["start_sec"]
         end = item["end_sec"]
         mid = (start + end) / 2  # 取中间帧
-        duration = end - start
+        # 结尾延长 0.3 秒，避免太突然
+        end_padded = end + 0.3
+        duration = end_padded - start
 
         audio_name = f"card_{idx:04d}.mp3"
         screenshot_name = f"card_{idx:04d}.jpg"
