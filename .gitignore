@@ -17,6 +17,7 @@ temp/
 .vscode/
 .idea/
 
-# 系统文件
-.DS_Store
-Thumbs.db
+# Graphify 临时文件
+.graphify_*
+graphify-out/
+_merge.py
