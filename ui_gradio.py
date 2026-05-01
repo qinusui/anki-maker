@@ -27,6 +27,7 @@ def load_subtitles(video_path, subtitle_path, min_duration):
         subtitles = filter_short_subtitles(subtitles, min_duration)
         _subtitles_cache = subtitles
 
+        # 返回 list of [checked, text, start, end]
         rows = [[True, sub.text, round(sub.start_sec, 2), round(sub.end_sec, 2)] for sub in subtitles]
 
         return rows, f"加载了 {len(rows)} 条字幕 (默认全选)"
@@ -47,6 +48,12 @@ def do_process(table_data, video_path, subtitle_path, output_dir):
     """处理选中的句子"""
     global _subtitles_cache
 
+    print(f"[DEBUG] video_path: {video_path}")
+    print(f"[DEBUG] subtitle_path: {subtitle_path}")
+    print(f"[DEBUG] output_dir: {output_dir}")
+    print(f"[DEBUG] table_data: {table_data}")
+    print(f"[DEBUG] _subtitles_cache: {len(_subtitles_cache)} items")
+
     if not video_path:
         yield "请上传视频文件"
         return
@@ -55,32 +62,50 @@ def do_process(table_data, video_path, subtitle_path, output_dir):
         yield "请上传字幕文件"
         return
 
-    if table_data is None or len(table_data) == 0:
+    if table_data is None:
         yield "请先加载字幕"
         return
 
     try:
-        yield f"正在处理 {len(table_data)} 条..."
+        # 解析 table_data（可能是 list of lists 或 list of dicts）
+        selected_texts = []
+        if isinstance(table_data, list):
+            for item in table_data:
+                if isinstance(item, list) and len(item) >= 2:
+                    if item[0]:  # checkbox
+                        selected_texts.append(item[1])  # text
+                elif isinstance(item, dict):
+                    if item.get("选择", item.get("checked", True)):
+                        selected_texts.append(item.get("原文", item.get("text", "")))
 
-        # 获取选中的字幕索引
-        selected_indices = set()
-        for row in table_data:
-            if row[0]:  # 选择列
-                # 从原文中匹配
-                text = row[1]
-                for sub in _subtitles_cache:
-                    if sub.text == text:
-                        selected_indices.add(sub.index)
-                        break
+        print(f"[DEBUG] selected_texts: {len(selected_texts)}")
 
-        if not selected_indices:
+        if not selected_texts:
             yield "没有选中的句子"
             return
 
-        yield f"已选择 {len(selected_indices)} 条..."
+        yield f"正在处理 {len(selected_texts)} 条..."
+
+        # 通过原文匹配字幕
+        selected_indices = set()
+        for text in selected_texts:
+            for sub in _subtitles_cache:
+                if sub.text == text:
+                    selected_indices.add(sub.index)
+                    break
+
+        print(f"[DEBUG] matched indices: {selected_indices}")
+
+        if not selected_indices:
+            yield "匹配失败，没有选中句子"
+            return
 
         all_subs = parse_srt(subtitle_path)
         selected = [s for s in all_subs if s.index in selected_indices]
+
+        print(f"[DEBUG] selected subtitles: {len(selected)}")
+
+        yield f"已选择 {len(selected)} 条..."
 
         output_path = Path(output_dir) if output_dir else Path("./output")
         output_path.mkdir(parents=True, exist_ok=True)
@@ -98,6 +123,8 @@ def do_process(table_data, video_path, subtitle_path, output_dir):
         yield f"完成: {result}"
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         yield f"失败: {e}"
 
 
@@ -125,7 +152,7 @@ def build_ui():
 
         output_path = gr.Textbox(value="./output", label="输出目录")
         process_btn = gr.Button("处理选中", variant="primary", size="lg")
-        result = gr.Textbox(label="结果", lines=3, visible=False)
+        result = gr.Textbox(label="结果", lines=5, visible=False)
 
         # 事件绑定
         load_btn.click(
