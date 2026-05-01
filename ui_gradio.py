@@ -4,141 +4,144 @@ Gradio Web UI - 可视化选择要导出的句子
 
 import gradio as gr
 from pathlib import Path
-import json
-import os
 
-from parse_srt import parse_srt, filter_short_subtitles, Subtitle
+from parse_srt import parse_srt, filter_short_subtitles
 from main import run as process_cards
 
 
+# 全局变量存储当前加载的字幕
+_subtitles_cache = []
+
+
 def load_subtitles(video_path: str, subtitle_path: str, min_duration: float = 1.0):
-    """加载字幕并在表格中显示"""
+    """加载字幕"""
+    global _subtitles_cache
+
     if not subtitle_path:
-        return None, "请提供字幕文件路径"
+        return None, "请提供字幕文件路径", None, None
 
     if not Path(subtitle_path).exists():
-        return None, f"字幕文件不存在: {subtitle_path}"
+        return None, f"字幕文件不存在: {subtitle_path}", None, None
 
     try:
         subtitles = parse_srt(subtitle_path)
         subtitles = filter_short_subtitles(subtitles, min_duration)
+        _subtitles_cache = subtitles
 
+        # 构建表格
+        headers = ["选择", "原文", "开始", "结束"]
         rows = []
         for sub in subtitles:
             rows.append([
-                True,  # 选择
-                sub.index,
+                True,  # 默认选中
+                sub.text,
                 round(sub.start_sec, 2),
-                round(sub.end_sec, 2),
-                round(sub.end_sec - sub.start_sec, 2),
-                sub.text
+                round(sub.end_sec, 2)
             ])
 
-        return rows, f"共加载 {len(rows)} 条字幕"
+        return headers, rows, f"共加载 {len(rows)} 条字幕", len(rows)
+
     except Exception as e:
-        return None, f"加载失败: {e}"
+        return None, f"加载失败: {e}", None, None
 
 
-def process_selected(
-    video_path: str,
-    subtitle_path: str,
-    table_data,
-    output_dir: str
-):
-    """处理选中的句子，生成 Anki 牌组"""
-    if not video_path or not subtitle_path or not table_data:
-        yield "请先加载视频和字幕"
+def select_all(table_data):
+    """全选"""
+    if table_data is None:
+        return None
+    return [[True] + row[1:] for row in table_data]
+
+
+def deselect_all(table_data):
+    """取消全选"""
+    if table_data is None:
+        return None
+    return [[False] + row[1:] for row in table_data]
+
+
+def process_selected(table_data, video_path, subtitle_path, output_dir):
+    """处理选中的句子"""
+    global _subtitles_cache
+
+    if table_data is None or len(table_data) == 0:
+        yield "请先加载字幕"
         return
 
-    if not Path(video_path).exists():
-        yield f"视频文件不存在: {video_path}"
+    if not video_path:
+        yield "请上传视频文件"
+        return
+
+    if not subtitle_path or not Path(subtitle_path).exists():
+        yield "请上传字幕文件"
         return
 
     try:
-        yield "正在解析选中句子..."
-        # 从 table_data 提取选中的字幕索引
+        # 获取选中的索引
         selected_indices = set()
-        for row in table_data:
+        for i, row in enumerate(table_data):
             if row[0]:  # 选择列
-                selected_indices.add(int(row[1]))  # 序号列
+                if i < len(_subtitles_cache):
+                    selected_indices.add(_subtitles_cache[i].index)
 
-        # 解析字幕并过滤
-        all_subtitles = parse_srt(subtitle_path)
-        selected_subtitles = [s for s in all_subtitles if s.index in selected_indices]
-
-        if not selected_subtitles:
+        if not selected_indices:
             yield "没有选中的句子"
             return
 
-        yield f"选中 {len(selected_subtitles)} 条，开始处理..."
-        yield f"正在 AI 筛选..."
-        yield f"正在切割媒体..."
-        yield f"正在打包..."
+        yield f"选中 {len(selected_indices)} 条..."
+        all_subtitles = parse_srt(subtitle_path)
+        selected_subtitles = [s for s in all_subtitles if s.index in selected_indices]
 
-        # 调用 main.py 的处理逻辑
-        output_dir_path = Path(output_dir) if output_dir else Path("./output")
+        # 保存临时字幕文件
+        output_path = Path(output_dir) if output_dir else Path("./output")
+        output_path.mkdir(parents=True, exist_ok=True)
 
-        # 保存临时字幕文件（只包含选中的）
-        temp_srt = output_dir_path / "temp_selected.srt"
+        temp_srt = output_path / "temp_selected.srt"
         with open(temp_srt, "w", encoding="utf-8") as f:
             for sub in selected_subtitles:
-                start = format_time(sub.start_sec)
-                end = format_time(sub.end_sec)
-                f.write(f"{sub.index}\n{start} --> {end}\n{sub.text}\n\n")
+                f.write(f"{sub.index}\n")
+                f.write(f"{format_time(sub.start_sec)} --> {format_time(sub.end_sec)}\n")
+                f.write(f"{sub.text}\n\n")
 
-        # 处理
-        result_path = process_cards(
-            video_path,
-            str(temp_srt),
-            str(output_dir_path)
-        )
+        yield "正在 AI 筛选..."
+        yield "正在切割媒体..."
+        yield "正在打包..."
 
-        yield f"完成！牌组已生成: {result_path}"
+        result = process_cards(video_path, str(temp_srt), str(output_path))
+
+        yield f"完成！牌组: {result}"
 
     except Exception as e:
         yield f"处理失败: {e}"
 
 
-def format_time(seconds: float) -> str:
-    """将秒数转为 SRT 时间格式"""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = int((seconds % 1) * 1000)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
-
-
-def toggle_all(table_data, select: bool):
-    """全选/取消全选"""
-    if table_data is None:
-        return None
-    for row in table_data:
-        row[0] = select
-    return table_data
+def format_time(seconds):
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    ms = int((seconds % 1) * 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
 def create_ui():
-    """创建 Gradio 界面"""
-
     with gr.Blocks(title="Anki 卡片生成器") as app:
-        gr.Markdown("# Anki 卡片生成器\n辅助学习英语 - 智能筛选有价值的句子")
+        gr.Markdown("# Anki 卡片生成器\n辅助学习英语")
 
         with gr.Row():
-            with gr.Column(scale=1):
-                video_input = gr.File(label="视频文件", file_types=[".mp4", ".mkv", ".avi"])
-                subtitle_input = gr.File(label="字幕文件", file_types=[".srt"])
-                min_duration = gr.Slider(0.5, 5, value=1.0, step=0.5, label="最短时长(秒)")
-                load_btn = gr.Button("加载字幕", variant="primary")
+            video_input = gr.File(label="视频文件", file_types=[".mp4", ".mkv", ".avi"])
+            subtitle_input = gr.File(label="字幕文件", file_types=[".srt"])
 
-            with gr.Column(scale=2):
-                output_msg = gr.Textbox(label="状态", lines=1)
-                subtitles_table = gr.DataFrame(
-                    headers=["选择", "序号", "开始(s)", "结束(s)", "时长(s)", "原文"],
-                    datatype=["bool", "number", "number", "number", "number", "str"],
-                    interactive=True,
-                    visible=False,
-                    wrap=True
-                )
+        with gr.Row():
+            min_duration = gr.Slider(0.5, 5, value=1.0, step=0.5, label="最短时长(秒)")
+            load_btn = gr.Button("加载字幕", variant="primary")
+
+        status_msg = gr.Textbox(label="状态", lines=1)
+
+        table_output = gr.DataFrame(
+            headers=["选择", "原文", "开始(s)", "结束(s)"],
+            datatype=["bool", "str", "number", "number"],
+            interactive=True,
+            visible=False
+        )
 
         with gr.Row():
             select_all_btn = gr.Button("全选")
@@ -147,35 +150,34 @@ def create_ui():
         with gr.Row():
             output_dir = gr.Textbox(value="./output", label="输出目录")
 
-        with gr.Row():
-            process_btn = gr.Button("处理选中的句子", variant="primary", size="lg")
-            process_status = gr.Textbox(label="处理进度", lines=5, visible=False)
+        process_btn = gr.Button("处理选中的句子", variant="primary", size="lg")
+        process_status = gr.Textbox(label="处理进度", lines=5, visible=False)
 
-        # 事件绑定
+        # 事件
         load_btn.click(
             fn=load_subtitles,
             inputs=[video_input, subtitle_input, min_duration],
-            outputs=[subtitles_table, output_msg]
+            outputs=[table_output, status_msg, table_output]
         ).then(
             fn=lambda: gr.update(visible=True),
-            outputs=[subtitles_table]
+            outputs=[table_output]
         )
 
         select_all_btn.click(
-            fn=lambda t: toggle_all(t, True),
-            inputs=[subtitles_table],
-            outputs=[subtitles_table]
+            fn=select_all,
+            inputs=[table_output],
+            outputs=[table_output]
         )
 
         deselect_all_btn.click(
-            fn=lambda t: toggle_all(t, False),
-            inputs=[subtitles_table],
-            outputs=[subtitles_table]
+            fn=deselect_all,
+            inputs=[table_output],
+            outputs=[table_output]
         )
 
         process_btn.click(
             fn=process_selected,
-            inputs=[video_input, subtitle_input, subtitles_table, output_dir],
+            inputs=[table_output, video_input, subtitle_input, output_dir],
             outputs=[process_status]
         )
 
