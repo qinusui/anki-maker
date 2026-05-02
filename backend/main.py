@@ -21,12 +21,15 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 
-# 静默心跳日志
-class HeartbeatFilter(logging.Filter):
-    def filter(self, record):
-        return '/api/heartbeat' not in record.getMessage()
+# 静默心跳和轮询日志
+class PollingFilter(logging.Filter):
+    _silent_paths = ('/api/heartbeat', '/progress/', '/ai-recommend/progress/', '/transcribe/progress/')
 
-logging.getLogger("uvicorn.access").addFilter(HeartbeatFilter())
+    def filter(self, record):
+        msg = record.getMessage()
+        return not any(p in msg for p in self._silent_paths)
+
+logging.getLogger("uvicorn.access").addFilter(PollingFilter())
 
 from api.subtitles import router as subtitles_router
 from api.process import router as process_router
