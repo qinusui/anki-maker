@@ -52,7 +52,7 @@ def main():
     print("   后端: http://localhost:8000")
     print("   前端: http://localhost:5173")
     print("   API 文档: http://localhost:8000/docs")
-    print("\n关闭浏览器页面后，服务将在 30 秒内自动停止")
+    print("\n关闭浏览器页面后，服务将在 5 秒内自动停止")
     print("按 Ctrl+C 可手动停止所有服务")
     print("-" * 50)
 

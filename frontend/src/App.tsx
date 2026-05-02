@@ -68,7 +68,7 @@ function App() {
       fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
     };
     sendHeartbeat(); // 立即发送一次
-    const interval = setInterval(sendHeartbeat, 15000);
+    const interval = setInterval(sendHeartbeat, 3000);
     return () => clearInterval(interval);
   }, []);
 

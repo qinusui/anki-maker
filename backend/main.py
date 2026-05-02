@@ -89,7 +89,7 @@ def _shutdown_watcher():
     while True:
         time.sleep(5)
         with _shutdown_lock:
-            if time.time() - _last_heartbeat > 30:
+            if time.time() - _last_heartbeat > 5:
                 print("[自动关闭] 检测到页面已关闭，正在停止所有服务...")
                 _kill_processes()
                 os._exit(0)
