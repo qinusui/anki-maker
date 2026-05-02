@@ -306,6 +306,10 @@ function App() {
       alert('请先加载字幕');
       return;
     }
+    if (selectedIndices.size === 0) {
+      alert('请先勾选需要分析的句子');
+      return;
+    }
 
     setIsRecommending(true);
     setRecommendations(null);
@@ -315,7 +319,7 @@ function App() {
     try {
       // 1. 启动 AI 推荐任务
       const { task_id } = await subtitleAPI.startRecommend(
-        subtitles,
+        subtitles.filter(s => selectedIndices.has(s.index)),
         apiKey,
         customPrompt || undefined,
         recommendBatchSize,
@@ -706,7 +710,7 @@ function App() {
                       </div>
                     )}
                     {modelList && modelList.length === 0 && (
-                      <p className="text-xs text-red-500">获取模型列表失败</p>
+                      <p className="text-xs text-red-500">获取模型列表失败，并不影响使用</p>
                     )}
                     <Button
                       variant="ghost"

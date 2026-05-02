@@ -1,5 +1,6 @@
 import { SubtitleItem, AIRecommendation } from '../types';
 import { cn } from '../utils/cn';
+import { Check } from 'lucide-react';
 
 interface SubtitleTableProps {
   subtitles: SubtitleItem[];
@@ -38,13 +39,19 @@ export const SubtitleTable = ({
     <div className="w-full border border-gray-200 rounded-lg overflow-hidden">
       {/* 表头 */}
       <div className="bg-gray-50 grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-200">
-        <div className="col-span-1">
-          <input
-            type="checkbox"
-            checked={isAllSelected}
-            onChange={onSelectAll}
-            className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-          />
+        <div
+          className="col-span-1 flex items-center justify-center cursor-pointer select-none"
+          onClick={onSelectAll}
+          title={isAllSelected ? '取消全选' : '全选'}
+        >
+          <div className={cn(
+            'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
+            isAllSelected
+              ? 'bg-primary-500 border-primary-500'
+              : 'border-gray-300 hover:border-primary-400'
+          )}>
+            {isAllSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+          </div>
         </div>
         <div className="col-span-1 text-xs font-medium text-gray-500">序号</div>
         <div className="col-span-5 text-xs font-medium text-gray-500">原文</div>
@@ -73,19 +80,29 @@ export const SubtitleTable = ({
           return (
             <div
               key={subtitle.index}
+              onClick={() => onToggleSelection(subtitle.index)}
               className={cn(
-                'grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors',
-                selectedIndices.has(subtitle.index) && 'bg-blue-50',
-                rec?.include && 'bg-green-50 hover:bg-green-100'
+                'grid grid-cols-12 gap-2 px-4 py-3 border-b border-gray-100 transition-colors cursor-pointer',
+                selectedIndices.has(subtitle.index)
+                  ? 'bg-blue-50 hover:bg-blue-100'
+                  : 'hover:bg-gray-50',
+                rec?.include && !selectedIndices.has(subtitle.index) && 'bg-green-50 hover:bg-green-100'
               )}
             >
-              <div className="col-span-1 flex items-center">
-                <input
-                  type="checkbox"
-                  checked={selectedIndices.has(subtitle.index)}
-                  onChange={() => onToggleSelection(subtitle.index)}
-                  className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
-                />
+              <div
+                className="col-span-1 flex items-center justify-center cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); onToggleSelection(subtitle.index); }}
+              >
+                <div className={cn(
+                  'w-5 h-5 rounded border-2 flex items-center justify-center transition-colors',
+                  selectedIndices.has(subtitle.index)
+                    ? 'bg-primary-500 border-primary-500'
+                    : 'border-gray-300 hover:border-primary-400'
+                )}>
+                  {selectedIndices.has(subtitle.index) && (
+                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                  )}
+                </div>
               </div>
               <div className="col-span-1 text-sm text-gray-500 flex items-center">
                 {subtitle.index}

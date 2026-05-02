@@ -97,23 +97,20 @@ def run(
 
     # Step 2: AI 处理（如有预处理数据则跳过）
     if pre_processed:
-        # 使用前端 AI 推荐的结果，按 index 匹配
-        lookup = {item["index"]: item for item in pre_processed if "index" in item}
+        # pre_processed 与 subtitles 来自同一批选中的句子，按位置顺序匹配
+        if len(pre_processed) != len(subtitles):
+            raise ValueError(f"预处理数据({len(pre_processed)})与字幕({len(subtitles)})数量不一致")
         processed = []
-        for sub in subtitles:
-            match = lookup.get(sub.index)
-            if match:
-                processed.append({
-                    "index": sub.index,
-                    "start_sec": sub.start_sec,
-                    "end_sec": sub.end_sec,
-                    "text": sub.text,
-                    "translation": match.get("translation", ""),
-                    "notes": match.get("notes", ""),
-                    "reason": match.get("reason", "")
-                })
-        if not processed:
-            raise ValueError("预处理数据与字幕不匹配")
+        for sub, pp in zip(subtitles, pre_processed):
+            processed.append({
+                "index": sub.index,
+                "start_sec": sub.start_sec,
+                "end_sec": sub.end_sec,
+                "text": sub.text,
+                "translation": pp.get("translation", ""),
+                "notes": pp.get("notes", ""),
+                "reason": pp.get("reason", "")
+            })
         progress(2, f"使用 AI 推荐结果，共 {len(processed)} 条")
     else:
         progress(2, f"AI 注释 {len(subtitles)} 条字幕中...")
