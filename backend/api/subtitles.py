@@ -377,7 +377,7 @@ async def ocr_extract_endpoint(
     video: UploadFile = File(...),
     min_duration: float = 1.0,
     lang: str = "ch",
-    conf_threshold: float = 0.65
+    conf_threshold: float = 1.0
 ):
     """
     OCR 识别视频硬字幕（后台异步，通过 progress 端点轮询）

@@ -148,7 +148,7 @@ export const subtitleAPI = {
   startOcrExtract: async (
     video: File,
     lang: string = 'ch',
-    confThreshold: number = 0.65,
+    confThreshold: number = 1.0,
     minDuration: number = 1.0
   ): Promise<{ task_id: string; status: string }> => {
     const formData = new FormData();

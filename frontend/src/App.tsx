@@ -324,7 +324,7 @@ function App() {
     setOcrMessage('准备 OCR 识别...');
 
     try {
-      const { task_id } = await subtitleAPI.startOcrExtract(videoFile, 'ch', 0.65, minDuration);
+      const { task_id } = await subtitleAPI.startOcrExtract(videoFile, 'ch', 1.0, minDuration);
 
       const pollInterval = setInterval(async () => {
         try {

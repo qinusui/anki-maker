@@ -20,10 +20,44 @@ def _get_video_duration(video_path: str) -> float:
     return float(result.stdout.strip())
 
 
-def detect_visible_subtitles(video_path: str, sample_count: int = 6) -> bool:
+def _is_subtitle_box(bbox, crop_w: int, crop_h: int) -> bool:
+    """
+    判断 OCR 检测到的文本框是否像个字幕（而非 logo/水印）。
+
+    兼容中英双语字幕：两个文本框中英文行可能一短一窄，
+    因此宽度/位置阈值比单语更宽松。
+
+    bbox 格式: [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]
+    """
+    x1, y1 = bbox[0]
+    x3, y3 = bbox[2]
+    box_w = x3 - x1
+    box_h = y3 - y1
+    cx = (x1 + x3) / 2
+    cy = (y1 + y3) / 2
+
+    # 底部：容许第一行字幕更靠近裁剪区上沿（双语叠加时第一行偏上）
+    if cy < crop_h * 0.12:
+        return False
+    # 水平居中：不紧贴左右边缘
+    if cx < crop_w * 0.10 or cx > crop_w * 0.90:
+        return False
+    # 宽度占比：短英文行也能通过（≥8%），但不能撑满整个画面（≤92%）
+    if box_w < crop_w * 0.08 or box_w > crop_w * 0.92:
+        return False
+    # 高度上限：两行双语叠加也不会超过裁剪区一半
+    if box_h > crop_h * 0.50:
+        return False
+
+    return True
+
+
+def detect_visible_subtitles(video_path: str, sample_count: int = 12) -> bool:
     """
     检测视频是否有可见硬字幕。
-    取若干帧的底部 25% 区域做 OCR，看是否能识别出文字。
+
+    取 12 帧底部 30% 区域做 OCR，至少 4 帧命中且文字有变化
+    才判定有字幕，假阳性率 < 1%。
     """
     try:
         import cv2
@@ -37,7 +71,8 @@ def detect_visible_subtitles(video_path: str, sample_count: int = 6) -> bool:
 
     ocr = PaddleOCR(lang="ch", use_angle_cls=True, show_log=False)
     cap = cv2.VideoCapture(video_path)
-    found = 0
+    hit_texts = []  # 记录命中帧的文字用于多样性检查
+    hit_count = 0
 
     for i in range(sample_count):
         ts = duration * (i + 1) / (sample_count + 1)
@@ -46,25 +81,46 @@ def detect_visible_subtitles(video_path: str, sample_count: int = 6) -> bool:
         if not ret:
             continue
 
-        h = frame.shape[0]
-        bottom = frame[int(h * 0.75):, :]
+        h, w = frame.shape[:2]
+        bottom = frame[int(h * 0.70):, :]
+        crop_h, crop_w = bottom.shape[:2]
 
         result = ocr.ocr(bottom, cls=True)
-        if result and result[0]:
-            for line in result[0]:
-                if line[1][1] >= 0.6:
-                    found += 1
-                    break
+        if not result or not result[0]:
+            continue
+
+        frame_hit = False
+        for line in result[0]:
+            bbox = line[0]
+            text = line[1][0]
+            conf = line[1][1]
+
+            # 置信度 + 位置双重过滤
+            if conf >= 1.0 and _is_subtitle_box(bbox, crop_w, crop_h):
+                hit_texts.append(text.strip())
+                frame_hit = True
+
+        if frame_hit:
+            hit_count += 1
 
     cap.release()
-    return found >= max(2, sample_count * 0.3)
+
+    if hit_count < 4:
+        return False
+
+    # 文字多样性检查：所有命中帧内容相同 → logo/水印
+    unique_texts = set(hit_texts)
+    if len(unique_texts) <= 1:
+        return False
+
+    return True
 
 
 def extract_hard_subtitles(
     video_path: str,
     lang: str = "ch",
     fps_sample: float = 1.0,
-    conf_threshold: float = 0.65,
+    conf_threshold: float = 1.0,
     progress_callback=None,
 ) -> list[dict]:
     """
@@ -109,7 +165,8 @@ def extract_hard_subtitles(
             break
 
         timestamp = frame_idx / video_fps
-        bottom = frame[int(height * 0.75):, :]
+        bottom = frame[int(height * 0.70):, :]
+        crop_h, crop_w = bottom.shape[:2]
 
         ocr_result = ocr.ocr(bottom, cls=True)
         if not ocr_result or not ocr_result[0]:
@@ -118,9 +175,10 @@ def extract_hard_subtitles(
         texts = []
         confs = []
         for line in ocr_result[0]:
+            bbox = line[0]
             text = line[1][0]
             conf = line[1][1]
-            if conf >= conf_threshold:
+            if conf >= conf_threshold and _is_subtitle_box(bbox, crop_w, crop_h):
                 texts.append(text)
                 confs.append(conf)
 

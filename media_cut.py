@@ -7,10 +7,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from dataclasses import dataclass
 
-# Windows 命令行最大长度约 8191，保守取 7000 给其他参数留空间
-_CMD_MAX_CHARS = 7000
-
-
 @dataclass
 class MediaItem:
     """媒体条目"""
@@ -152,12 +148,12 @@ def capture_screenshot(
     """
     cmd = [
         get_ffmpeg_path(),
-        "-y",
-        "-i", video_path,
+        "-y", "-nostdin",
         "-ss", f"{timestamp:.3f}",
+        "-i", video_path,
         "-vframes", "1",
         "-q:v", str(quality),
-        "-update", "1",  # 覆盖输出
+        "-threads", "1",
         output_path
     ]
 
@@ -171,98 +167,6 @@ def capture_screenshot(
         return result.returncode == 0
     except subprocess.TimeoutExpired:
         return False
-
-
-def capture_screenshots_batch(
-    video_path: str,
-    timestamps: list[tuple[int, float]],  # [(index, timestamp), ...]
-    output_dir: str,
-    quality: int = 2
-) -> dict[int, str]:
-    """
-    批量截取视频帧，使用 ffmpeg select filter 一次处理多帧。
-    超长命令行自动分批。
-
-    Args:
-        video_path: 视频文件路径
-        timestamps: (index, timestamp) 列表
-        output_dir: 输出目录
-        quality: 图像质量 (1-31, 越小越好)
-
-    Returns:
-        {index: screenshot_path} 字典
-    """
-    results = {}
-
-    # 按时戳排序
-    items = sorted(timestamps, key=lambda x: x[1])
-    remaining = list(items)
-
-    batch_idx = 0
-
-    while remaining:
-        # 构建 select 表达式，控制在命令行长度以内
-        expr_parts = []
-        batch = []
-
-        for idx, ts in remaining:
-            # 每个条件 ~25 字符，预留给其他参数的空间
-            part = f"lt(abs(t-{ts:.3f}),0.05)"
-            if sum(len(p) for p in expr_parts) + len(part) + len(expr_parts) + 500 > _CMD_MAX_CHARS:
-                break
-            expr_parts.append(part)
-            batch.append((idx, ts))
-
-        if not batch:
-            break
-
-        select_expr = "+".join(expr_parts)
-        output_pattern = str(Path(output_dir) / f"_batch{batch_idx}_%03d.jpg")
-
-        cmd = [
-            get_ffmpeg_path(), "-y",
-            "-i", video_path,
-            "-vf", f"select='{select_expr}',setpts=N/FRAME_RATE/TB",
-            "-vsync", "vfr",
-            "-q:v", str(quality),
-            output_pattern
-        ]
-
-        subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-
-        # 检查输出文件数量是否与批次一致
-        actual_files = sorted(Path(output_dir).glob(f"_batch{batch_idx}_*.jpg"))
-        if len(actual_files) == len(batch):
-            # 1:1 匹配，使用位置映射
-            for i, (idx, _ts) in enumerate(batch):
-                src = Path(output_dir) / f"_batch{batch_idx}_{i+1:03d}.jpg"
-                dst = Path(output_dir) / f"card_{idx:04d}.jpg"
-                if src.exists():
-                    dst.unlink(missing_ok=True)
-                    src.rename(dst)
-                    results[idx] = str(dst)
-        else:
-            # 帧数不匹配（高帧率时 select 命中多帧），回退逐条截
-            for idx, ts in batch:
-                path = str(Path(output_dir) / f"card_{idx:04d}.jpg")
-                if capture_screenshot(video_path, ts, path, quality):
-                    results[idx] = path
-            # 清理批量产生的临时文件
-            for f in actual_files:
-                f.unlink(missing_ok=True)
-
-        remaining = remaining[len(batch):]
-        batch_idx += 1
-
-    # 未成功截到图的，回退逐条截
-    missing = [(idx, ts) for idx, ts in items if idx not in results]
-    if missing:
-        for idx, ts in missing:
-            path = str(Path(output_dir) / f"card_{idx:04d}.jpg")
-            if capture_screenshot(video_path, ts, path, quality):
-                results[idx] = path
-
-    return results
 
 
 def process_media_items(
@@ -301,25 +205,20 @@ def process_media_items(
     if not extract_full_audio(video_path, full_audio_path):
         raise RuntimeError("提取音轨失败")
 
-    # Step 2: 截图（≤100 条逐条并行，>100 条批量 select filter）
-    BATCH_SS_THRESHOLD = 100
+    # Step 2: 并行逐条截图（-ss 在 -i 前，输入跳转快）
+    print(f"截图 {len(items)} 帧，{num_workers} 并发...")
     ss_map = {}
 
-    if len(items) > BATCH_SS_THRESHOLD:
-        print(f"批量截图 {len(items)} 帧...")
-        ts_list = [(item["index"], item["snapshot_time"]) for item in items]
-        ss_map = capture_screenshots_batch(video_path, ts_list, str(screenshot_dir))
-    else:
-        print(f"逐条截图 {len(items)} 帧，{num_workers} 并发...")
-        def _ss_single(item):
-            idx = item["index"]
-            path = str(screenshot_dir / f"card_{idx:04d}.jpg")
-            ok = capture_screenshot(video_path, item["snapshot_time"], path)
-            return (idx, path) if ok else (idx, "")
-        with ThreadPoolExecutor(max_workers=num_workers) as ss_executor:
-            for idx, path in ss_executor.map(_ss_single, items):
-                if path:
-                    ss_map[idx] = path
+    def _ss_single(item):
+        idx = item["index"]
+        path = str(screenshot_dir / f"card_{idx:04d}.jpg")
+        ok = capture_screenshot(video_path, item["snapshot_time"], path)
+        return (idx, path) if ok else (idx, "")
+
+    with ThreadPoolExecutor(max_workers=num_workers) as ss_executor:
+        for idx, path in ss_executor.map(_ss_single, items):
+            if path:
+                ss_map[idx] = path
     print(f"截图完成: {len(ss_map)}/{len(items)}")
 
     # Step 3: 并行切音频
