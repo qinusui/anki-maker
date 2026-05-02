@@ -11,6 +11,29 @@ import { CardPreview } from './components/CardPreview';
 import { SubtitleItem, ProcessedCard } from './types';
 import { subtitleAPI, processAPI } from './services/api';
 
+// 格式化时间为 SRT 格式
+function formatSRTTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+}
+
+// 根据选中的字幕生成新的 SRT 文件内容
+function generateSRTContent(subtitles: SubtitleItem[], selectedIndices: Set<number>): string {
+  const selectedSubtitles = subtitles.filter(s => selectedIndices.has(s.index));
+  let content = '';
+
+  selectedSubtitles.forEach((sub, idx) => {
+    content += `${idx + 1}\n`;
+    content += `${formatSRTTime(sub.start_sec)} --> ${formatSRTTime(sub.end_sec)}\n`;
+    content += `${sub.text}\n\n`;
+  });
+
+  return content;
+}
+
 const PROCESSING_STEPS = [
   { id: 'upload', label: '上传文件', status: 'pending' as const },
   { id: 'parse', label: '解析字幕', status: 'pending' as const },
@@ -79,6 +102,11 @@ function App() {
       return;
     }
 
+    if (selectedIndices.size === 0) {
+      alert('请至少选择一条字幕');
+      return;
+    }
+
     setIsProcessing(true);
     setProcessingSteps(PROCESSING_STEPS);
 
@@ -90,10 +118,15 @@ function App() {
         )
       );
 
-      // 调用后端 API 处理
+      // 根据选中的字幕生成新的 SRT 文件
+      const srtContent = generateSRTContent(subtitles, selectedIndices);
+      const selectedSubtitleBlob = new Blob([srtContent], { type: 'text/plain' });
+      const selectedSubtitleFile = new File([selectedSubtitleBlob], 'selected_subtitles.srt', { type: 'text/plain' });
+
+      // 调用后端 API 处理（使用选中的字幕文件）
       const result = await processAPI.uploadAndProcess(
         videoFile,
-        subtitleFile,
+        selectedSubtitleFile,
         minDuration,
         outputDir,
         apiKey || undefined
