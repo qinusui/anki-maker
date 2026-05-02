@@ -4,32 +4,43 @@ echo Anki Card Generator - Start All
 echo ========================================
 echo.
 
-REM Check Python
-where python >nul 2>nul
-if errorlevel 1 (
-    echo ERROR: Python not found
-    echo Please install Python: https://www.python.org/
+REM Check if venv exists
+if not exist .venv\Scripts\activate.bat (
+    echo ERROR: Virtual environment not found
+    echo Please create it first: python -m venv .venv
     pause
     exit /b 1
 )
-echo [1/4] Python detected
+
+REM Activate virtual environment
+echo [1/5] Activating virtual environment...
+call .venv\Scripts\activate.bat
+if errorlevel 1 (
+    echo ERROR: Failed to activate virtual environment
+    pause
+    exit /b 1
+)
+echo Virtual environment activated
+echo.
+
+echo [2/5] Checking Python...
 python --version
 
 REM Check Node.js
+echo [3/5] Checking Node.js...
 where node >nul 2>nul
 if errorlevel 1 (
-    echo.
     echo ERROR: Node.js not found
     echo Please install Node.js: https://nodejs.org/
+    deactivate
     pause
     exit /b 1
 )
-echo [2/4] Node.js detected
 node --version
 
 REM Check frontend dependencies
 echo.
-echo [3/4] Checking frontend dependencies...
+echo [4/5] Checking frontend dependencies...
 cd frontend
 if not exist node_modules (
     echo Frontend dependencies not installed, installing now...
@@ -37,6 +48,7 @@ if not exist node_modules (
     if errorlevel 1 (
         echo ERROR: Failed to install frontend dependencies
         cd ..
+        deactivate
         pause
         exit /b 1
     )
@@ -45,7 +57,7 @@ echo Frontend dependencies ready
 cd ..
 
 echo.
-echo [4/4] Starting services...
+echo [5/5] Starting services...
 echo.
 echo ========================================
 echo Services starting...
@@ -60,8 +72,8 @@ echo Press Ctrl+C to stop all services
 echo ----------------------------------------
 echo.
 
-REM Start backend in new window
-start "Anki Backend" cmd /k "cd backend && python main.py"
+REM Start backend in new window with activated venv
+start "Anki Backend" cmd /k "call .venv\Scripts\activate.bat && cd backend && python main.py"
 
 REM Wait a bit for backend to start
 timeout /t 2 /nobreak >nul
@@ -81,4 +93,5 @@ echo.
 echo To stop services, close the above two windows
 echo.
 
+deactivate
 pause

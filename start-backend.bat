@@ -4,28 +4,39 @@ echo Anki Card Generator - Backend Server
 echo ========================================
 echo.
 
-REM Check Python
-where python >nul 2>nul
-if errorlevel 1 (
-    echo ERROR: Python not found
-    echo Please install Python: https://www.python.org/
+REM Check if venv exists
+if not exist .venv\Scripts\activate.bat (
+    echo ERROR: Virtual environment not found
+    echo Please create it first: python -m venv .venv
     pause
     exit /b 1
 )
 
-echo [1/3] Checking Python environment...
+REM Activate virtual environment
+echo [1/4] Activating virtual environment...
+call .venv\Scripts\activate.bat
+if errorlevel 1 (
+    echo ERROR: Failed to activate virtual environment
+    pause
+    exit /b 1
+)
+echo Virtual environment activated
+echo.
+
+echo [2/4] Checking Python...
 python --version
 if errorlevel 1 (
-    echo ERROR: Python version check failed
+    echo ERROR: Python check failed
     pause
     exit /b 1
 )
 echo.
 
-echo [2/3] Installing backend dependencies...
+echo [3/4] Installing backend dependencies...
 cd backend
 if not exist requirements.txt (
     echo ERROR: requirements.txt not found
+    deactivate
     cd ..
     pause
     exit /b 1
@@ -34,14 +45,16 @@ if not exist requirements.txt (
 pip install -r requirements.txt
 if errorlevel 1 (
     echo ERROR: Failed to install dependencies
+    deactivate
     cd ..
     pause
     exit /b 1
 )
 echo Dependencies installed
+cd ..
 echo.
 
-echo [3/3] Starting FastAPI server...
+echo [4/4] Starting FastAPI server...
 echo.
 echo ========================================
 echo Backend will start at:
@@ -52,6 +65,7 @@ echo.
 echo Press Ctrl+C to stop the server
 echo.
 
+cd backend
 python main.py
 
 REM If backend exits with error
@@ -64,3 +78,4 @@ if errorlevel 1 (
 )
 
 cd ..
+deactivate
