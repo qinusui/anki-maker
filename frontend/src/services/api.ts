@@ -45,7 +45,7 @@ export const processAPI = {
     subtitleFile: File,
     minDuration: number = 1.0,
     apiKey?: string
-  ): Promise<ProcessResult> => {
+  ): Promise<{ task_id: string; status: string }> => {
     const formData = new FormData();
     formData.append('video', videoFile);
     formData.append('subtitle', subtitleFile);
@@ -54,11 +54,11 @@ export const processAPI = {
       formData.append('api_key', apiKey);
     }
 
-    const response = await api.post<ProcessResult>('/api/process/upload-and-process', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.post<{ task_id: string; status: string }>(
+      '/api/process/upload-and-process',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
 
     return response.data;
   },
@@ -83,9 +83,18 @@ export const processAPI = {
   },
 
   // 获取处理进度
-  getProgress: async (taskId: string): Promise<ProcessProgress> => {
-    const response = await api.get<ProcessProgress>(`/api/process/progress/${taskId}`);
-    return response.data;
+  getProgress: async (taskId: string) => {
+    const response = await api.get(`/api/process/progress/${taskId}`);
+    return response.data as {
+      task_id: string;
+      status: string;
+      step: number;
+      total_steps: number;
+      message: string;
+      details: Record<string, number> | null;
+      error: string | null;
+      result: ProcessResult | null;
+    };
   },
 
   // 验证 API Key

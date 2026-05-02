@@ -37,9 +37,9 @@ function generateSRTContent(subtitles: SubtitleItem[], selectedIndices: Set<numb
 const PROCESSING_STEPS = [
   { id: 'upload', label: '上传文件', status: 'pending' as const },
   { id: 'parse', label: '解析字幕', status: 'pending' as const },
-  { id: 'ai', label: 'AI 处理', status: 'pending' as const },
-  { id: 'media', label: '处理媒体', status: 'pending' as const },
-  { id: 'pack', label: '打包卡片', status: 'pending' as const },
+  { id: 'ai', label: 'AI 智能筛选', status: 'pending' as const },
+  { id: 'media', label: '切割音频与截图', status: 'pending' as const },
+  { id: 'pack', label: '打包 Anki 牌组', status: 'pending' as const },
 ];
 
 function App() {
@@ -117,44 +117,78 @@ function App() {
     }
 
     setIsProcessing(true);
-    setProcessingSteps(PROCESSING_STEPS);
+    setProcessingSteps(PROCESSING_STEPS.map(s => ({ ...s, status: 'pending' as const })));
+    setCurrentStep(0);
+
+    // 根据选中的字幕生成新的 SRT 文件
+    const srtContent = generateSRTContent(subtitles, selectedIndices);
+    const selectedSubtitleBlob = new Blob([srtContent], { type: 'text/plain' });
+    const selectedSubtitleFile = new File([selectedSubtitleBlob], 'selected_subtitles.srt', { type: 'text/plain' });
 
     try {
-      setCurrentStep(0);
-      setProcessingSteps(s =>
-        s.map((step, idx) =>
-          idx === 0 ? { ...step, status: 'processing' } : { ...step, status: 'pending' }
-        )
-      );
-
-      // 根据选中的字幕生成新的 SRT 文件
-      const srtContent = generateSRTContent(subtitles, selectedIndices);
-      const selectedSubtitleBlob = new Blob([srtContent], { type: 'text/plain' });
-      const selectedSubtitleFile = new File([selectedSubtitleBlob], 'selected_subtitles.srt', { type: 'text/plain' });
-
-      // 调用后端 API 处理（使用选中的字幕文件）
-      const result = await processAPI.uploadAndProcess(
+      // 1. 上传并启动后台处理
+      const { task_id } = await processAPI.uploadAndProcess(
         videoFile,
         selectedSubtitleFile,
         minDuration,
         apiKey || undefined
       );
 
-      if (result.success) {
-        setProcessingSteps(s => s.map(step => ({ ...step, status: 'completed' as const })));
-        setApkgPath(result.apkg_path);
+      // 2. 轮询进度
+      const pollInterval = setInterval(async () => {
+        try {
+          const progress = await processAPI.getProgress(task_id);
 
-        // 使用后端返回的卡片数据
-        if (result.cards && result.cards.length > 0) {
-          setResult(result.cards);
-          setPreviewIndex(0);
-        } else {
-          // 如果没有返回卡片数据，至少显示数量
-          alert(`处理完成！生成了 ${result.cards_count} 张卡片。请点击下载按钮获取 .apkg 文件。`);
+          // 更新步骤状态
+          setCurrentStep(progress.step);
+          setProcessingSteps(steps => {
+            const newSteps = [...steps];
+            for (let i = 0; i < newSteps.length; i++) {
+              if (i < progress.step) {
+                newSteps[i] = { ...newSteps[i], status: 'completed' as const };
+              } else if (i === progress.step) {
+                newSteps[i] = { ...newSteps[i], status: 'processing' as const };
+              }
+            }
+            return newSteps;
+          });
+
+          if (progress.status === 'completed' && progress.result) {
+            clearInterval(pollInterval);
+            setIsProcessing(false);
+            setProcessingSteps(s => s.map(step => ({ ...step, status: 'completed' as const })));
+
+            const r = progress.result;
+            setApkgPath(r.apkg_path);
+
+            if (r.cards && r.cards.length > 0) {
+              setResult(r.cards);
+              setPreviewIndex(0);
+            } else {
+              alert(`处理完成！生成了 ${r.cards_count} 张卡片。`);
+            }
+          }
+
+          if (progress.status === 'error') {
+            clearInterval(pollInterval);
+            setIsProcessing(false);
+            const errMsg = progress.error || '未知错误';
+            alert(`处理失败: ${errMsg}`);
+            setProcessingSteps(s =>
+              s.map((step, i) =>
+                step.status === 'processing'
+                  ? { ...step, status: 'error' as const, error: errMsg }
+                  : step
+              )
+            );
+          }
+        } catch (e) {
+          // 轮询失败不中断
         }
-      } else {
-        throw new Error(result.message);
-      }
+      }, 1000);
+
+      // 保存 interval ID 以便清理
+      (window as any).__pollInterval = pollInterval;
 
     } catch (error) {
       console.error('处理失败:', error);
@@ -164,11 +198,10 @@ function App() {
       setProcessingSteps(s =>
         s.map((step, i) =>
           step.status === 'processing'
-            ? { ...step, status: 'error', error: errorMessage }
+            ? { ...step, status: 'error' as const, error: errorMessage }
             : step
         )
       );
-    } finally {
       setIsProcessing(false);
     }
   };
