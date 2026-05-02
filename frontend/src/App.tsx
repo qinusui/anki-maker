@@ -467,13 +467,12 @@ function App() {
     }
 
     setIsRecommending(true);
-    setRecommendations(null);
+    setRecommendations(new Map());
     setRecommendBatch(0);
     setRecommendTotalBatches(0);
 
     try {
-      // 1. 启动 AI 推荐任务
-      const { task_id } = await subtitleAPI.startRecommend(
+      const stream = subtitleAPI.startRecommendStream(
         subtitles.filter(s => selectedIndices.has(s.index)),
         apiKey,
         customPrompt || undefined,
@@ -482,34 +481,34 @@ function App() {
         modelName || undefined
       );
 
-      // 2. 轮询进度
-      const pollInterval = setInterval(async () => {
-        try {
-          const progress = await subtitleAPI.getRecommendProgress(task_id);
-
-          setRecommendBatch(progress.batch);
-          setRecommendTotalBatches(progress.total_batches);
-
-          if (progress.status === 'completed' && progress.result) {
-            clearInterval(pollInterval);
-            setIsRecommending(false);
-
-            const map = new Map<number, AIRecommendation>();
-            progress.result.recommendations.forEach(r => map.set(r.index, r));
-            setRecommendations(map);
-
-            // 自动选中推荐的句子
-            const recommendedIndices = progress.result.recommendations
-              .filter(r => r.include)
-              .map(r => r.index);
-            setSelectedIndices(new Set(recommendedIndices));
-          }
-        } catch (e) {
-          // 轮询失败不中断
+      for await (const event of stream) {
+        if (event.type === 'start') {
+          setRecommendTotalBatches(event.total_batches!);
+        } else if (event.type === 'batch') {
+          setRecommendBatch(event.batch!);
+          // 增量更新 recommendations
+          setRecommendations(prev => {
+            const next = new Map(prev);
+            for (const item of event.items!) {
+              next.set(item.index, item);
+            }
+            return next;
+          });
+        } else if (event.type === 'done') {
+          setIsRecommending(false);
         }
-      }, 1000);
+      }
 
-      (window as any).__recommendPoll = pollInterval;
+      // 流结束后，自动选中推荐的句子
+      setRecommendations(prev => {
+        if (prev.size > 0) {
+          const recommendedIndices = Array.from(prev.values())
+            .filter(r => r.include)
+            .map(r => r.index);
+          setSelectedIndices(new Set(recommendedIndices));
+        }
+        return prev;
+      });
 
     } catch (error) {
       console.error('AI 推荐失败:', error);

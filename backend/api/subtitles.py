@@ -3,6 +3,7 @@
 """
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import StreamingResponse
 from pathlib import Path
 import tempfile
 import shutil
@@ -430,24 +431,72 @@ _recommend_store: dict = {}
 _recommend_lock = _threading.Lock()
 
 
+# AI 批次调用常量
+_MAX_RETRIES = 3
+_RETRY_DELAYS = [2, 5, 10]  # 秒
+_TRANSIENT_KW = ("connection", "timeout", "rate limit", "server error",
+                 "503", "502", "500", "429", "unreachable", "refused",
+                 "reset by peer", "too many requests")
+
+
+def _is_transient(err_msg: str) -> bool:
+    lower = err_msg.lower()
+    return any(kw in lower for kw in _TRANSIENT_KW)
+
+
+def _parse_ai_items(parsed) -> list:
+    """从 AI 返回的 JSON 中提取 items 列表"""
+    if isinstance(parsed, dict):
+        items = parsed.get("items") or parsed.get("results")
+        if items and isinstance(items, list):
+            return items
+        for v in parsed.values():
+            if isinstance(v, list):
+                return v
+    elif isinstance(parsed, list):
+        return parsed
+    return []
+
+
+def _call_ai_batch(client, system_prompt: str, batch: list, model_name: str) -> tuple[list, str]:
+    """
+    调用 AI API 处理单批次（含重试）。
+
+    Returns:
+        (items, error): items 为结果列表，error 为空字符串表示成功，否则为错误信息
+    """
+    import time as _time
+
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+            content = response.choices[0].message.content
+            parsed = json.loads(content)
+            items = _parse_ai_items(parsed)
+            return items, ""
+        except Exception as e:
+            last_error = _tr(str(e))
+            if _is_transient(str(e)) and attempt < _MAX_RETRIES:
+                delay = _RETRY_DELAYS[attempt]
+                _time.sleep(delay)
+            else:
+                return [], last_error
+    return [], last_error
+
+
 def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_prompt: str,
                       batch_size: int = 30, api_base: str = "https://api.deepseek.com",
                       model_name: str = "deepseek-chat"):
     """同步执行 AI 推荐（后台线程，带重试机制）"""
-    import time as _time
     from openai import OpenAI
-
-    MAX_RETRIES = 3
-    RETRY_DELAYS = [2, 5, 10]  # 秒
-
-    # 瞬时错误关键词（可重试）
-    _TRANSIENT_KW = ("connection", "timeout", "rate limit", "server error",
-                     "503", "502", "500", "429", "unreachable", "refused",
-                     "reset by peer", "too many requests")
-
-    def _is_transient(err_msg: str) -> bool:
-        lower = err_msg.lower()
-        return any(kw in lower for kw in _TRANSIENT_KW)
 
     client = OpenAI(api_key=api_key, base_url=api_base)
     results = []
@@ -476,55 +525,13 @@ def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_p
                 "message": msg
             })
 
-        batch_ok = False
-        last_error = ""
-
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.2,
-                )
-
-                content = response.choices[0].message.content
-                print(f"    AI 响应: {content[:200]}...")
-                parsed = json.loads(content)
-
-                if isinstance(parsed, dict):
-                    items = parsed.get("items") or parsed.get("results")
-                    if items and isinstance(items, list):
-                        results.extend(items)
-                    else:
-                        for v in parsed.values():
-                            if isinstance(v, list):
-                                results.extend(v)
-                                break
-                elif isinstance(parsed, list):
-                    results.extend(parsed)
-
-                batch_ok = True
-                break  # 成功，退出重试循环
-
-            except Exception as e:
-                last_error = _tr(str(e))
-                is_transient = _is_transient(str(e))
-
-                if is_transient and attempt < MAX_RETRIES:
-                    delay = RETRY_DELAYS[attempt]
-                    print(f"    批次 {batch_num} 失败（{last_error}），{delay}s 后重试 ({attempt+1}/{MAX_RETRIES})...")
-                    _time.sleep(delay)
-                else:
-                    break  # 非瞬时错误或重试耗尽
-
-        if not batch_ok:
+        items, error = _call_ai_batch(client, system_prompt, batch, model_name)
+        if items:
+            results.extend(items)
+        else:
             failed_batches += 1
-            reason = f"处理失败: {last_error}"
-            print(f"    批次 {batch_num} 最终失败: {last_error}")
+            reason = f"处理失败: {error}"
+            print(f"    批次 {batch_num} 最终失败: {error}")
             for item in batch:
                 results.append({"index": item["index"], "include": False, "reason": reason})
 
@@ -595,6 +602,50 @@ async def ai_recommend_progress(task_id: str):
         raise HTTPException(status_code=404, detail="任务不存在")
 
     return task
+
+
+@router.post("/ai-recommend-stream")
+async def ai_recommend_stream(request: AIRecommendRequest):
+    """AI 推荐 — SSE 流式返回每批结果"""
+    import math
+    from openai import OpenAI
+
+    api_key = request.api_key or os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="需要提供 API Key")
+
+    system_prompt = _build_system_prompt(request.custom_prompt)
+    subtitle_dicts = [
+        {"index": s.index, "start_sec": s.start_sec, "end_sec": s.end_sec, "text": s.text}
+        for s in request.subtitles
+    ]
+    api_base = request.api_base or "https://api.deepseek.com"
+    model_name = request.model_name or "deepseek-chat"
+    batch_size = max(1, min(100, request.batch_size))
+    total_batches = math.ceil(len(subtitle_dicts) / batch_size)
+
+    def event_generator():
+        client = OpenAI(api_key=api_key, base_url=api_base)
+        yield f"data: {json.dumps({'type': 'start', 'total_batches': total_batches})}\n\n"
+
+        for i in range(0, len(subtitle_dicts), batch_size):
+            batch = subtitle_dicts[i:i + batch_size]
+            batch_num = i // batch_size + 1
+            print(f"  AI 推荐流式：第 {batch_num}/{total_batches} 批")
+
+            items, error = _call_ai_batch(client, system_prompt, batch, model_name)
+            if not items:
+                items = [{"index": item["index"], "include": False, "reason": f"处理失败: {error}"} for item in batch]
+
+            yield f"data: {json.dumps({'type': 'batch', 'batch': batch_num, 'items': items}, ensure_ascii=False)}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
 
 
 # 转录任务进度存储

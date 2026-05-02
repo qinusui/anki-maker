@@ -100,6 +100,52 @@ export const subtitleAPI = {
     };
   },
 
+  // AI 推荐：SSE 流式
+  startRecommendStream: async function* (
+    subtitles: SubtitleItem[],
+    apiKey?: string,
+    customPrompt?: string,
+    batchSize?: number,
+    apiBase?: string,
+    modelName?: string
+  ): AsyncGenerator<{ type: string; total_batches?: number; batch?: number; items?: any[] }> {
+    const response = await fetch(`${API_BASE_URL}/api/subtitles/ai-recommend-stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subtitles,
+        api_key: apiKey || undefined,
+        custom_prompt: customPrompt || undefined,
+        batch_size: batchSize ?? 30,
+        api_base: apiBase || undefined,
+        model_name: modelName || undefined
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(err || `HTTP ${response.status}`);
+    }
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop()!;
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          yield JSON.parse(line.slice(6));
+        }
+      }
+    }
+  },
+
   // 提取视频内嵌字幕
   extractEmbeddedSubs: async (
     video: File,
