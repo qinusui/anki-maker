@@ -7,33 +7,42 @@
 ## 功能
 
 - 解析 `.srt` 字幕文件，提取时间轴和文本
-- 调用 DeepSeek API 批量翻译并生成词汇注释
-- 使用 ffmpeg 按时间轴切割音频片段
+- **字幕生成方案链**：自动检测内嵌软字幕 → OCR 硬字幕 → Whisper 转录
+- 调用 AI API（DeepSeek / OpenAI / Ollama 等兼容接口）批量翻译并生成词汇注释
+- **AI 智能筛选**：自动筛选有学习价值的句子，过滤无意义对话
+- 使用 ffmpeg 按时间轴切割音频片段（可自定义头尾 padding）
 - 自动截取每句对话的中间帧作为截图
 - 生成标准 `.apkg` 文件，可直接导入 Anki
+- **Web 配置持久化**：API 地址、模型名称、Key 自动保存到浏览器
 
 ## 目录结构
 
 ```
 anki_maker/
-├── main.py           # 主程序入口
-├── parse_srt.py      # 字幕解析
-├── ai_process.py     # AI 批量处理
-├── media_cut.py      # ffmpeg 媒体切割
-├── pack_apkg.py      # Anki 打包
-├── requirements.txt   # 依赖
-├── backend/          # FastAPI 后端（Web 界面）
-│   ├── main.py      # 后端入口
-│   ├── api/         # API 路由
-│   ├── models/      # 数据模型
-│   └── output/      # 生成的牌组输出
-├── frontend/         # React 前端（Web 界面）
+├── main.py              # 主程序入口（流程编排）
+├── parse_srt.py         # 字幕解析
+├── ai_process.py        # AI 批量处理
+├── media_cut.py         # ffmpeg 媒体切割
+├── pack_apkg.py         # Anki 打包
+├── whisper_transcribe.py # Whisper 自动转录
+├── ocr_subtitle.py      # OCR 硬字幕提取
+├── start-all.py         # 一键启动前后端
+├── requirements.txt      # Python 依赖
+├── backend/             # FastAPI 后端（Web 界面）
+│   ├── main.py         # 后端入口
+│   ├── api/            # API 路由
+│   │   ├── subtitles.py # 字幕 / AI推荐 / 转录 / OCR
+│   │   ├── process.py   # 处理流程
+│   │   └── cards.py     # 卡片管理
+│   ├── models/         # 数据模型（Pydantic）
+│   └── output/         # 生成的牌组输出
+├── frontend/            # React 前端（Web 界面）
 │   └── src/
 │       ├── components/  # UI 组件
 │       ├── services/    # API 调用
 │       └── App.tsx      # 主应用
-├── input/            # 放置视频和字幕文件
-└── output/           # 命令行模式生成的牌组输出
+├── input/               # 放置视频和字幕文件
+└── output/              # 命令行模式生成的牌组输出
 ```
 
 ## 安装依赖
@@ -60,12 +69,23 @@ npm install
 ### 命令行
 
 ```bash
-pip install openai genanki pysrt openai-whisper python-dotenv
+pip install -r requirements.txt
 ```
 
 需要提前安装 ffmpeg（添加到 PATH）。
 
 ## 配置
+
+### Web 界面（推荐）
+
+在页面配置栏直接填写，自动保存到浏览器：
+
+- **API 地址**：支持 OpenAI 兼容接口（DeepSeek / OpenAI / Ollama 等）
+- **模型名称**：自定义模型
+- **API Key**：自动持久化到 localStorage
+- **测试连接** / **获取模型列表**：一键验证配置
+
+### 命令行
 
 复制 `.env.example` 为 `.env`，填入你的 API Key：
 ```bash
@@ -134,10 +154,11 @@ npm run dev
 前端将在 `http://localhost:5173` 启动
 
 **3. 使用 Web 界面：**
-- 配置 DeepSeek API Key
-- 上传视频和字幕文件
-- 预览并选择要处理的字幕
-- 生成并下载 Anki 牌组
+- 配置 AI API（支持 DeepSeek / OpenAI / Ollama 等）
+- 上传视频文件，点击「生成字幕」（自动检测：软字幕 → OCR → Whisper）
+- 或直接上传 `.srt` 字幕文件
+- AI 推荐筛选有学习价值的句子，预览并勾选
+- 点击「开始处理」生成并下载 Anki 牌组
 
 ### 命令行
 
@@ -153,13 +174,19 @@ python main.py input/video.mp4 input/subtitle.srt output
 ## 流程
 
 ```
-视频 + 字幕
+视频文件
+    ↓
+┌─ 字幕获取（自动降级）─────────────┐
+│ 1. 提取内嵌软字幕 (ffmpeg, <1s)   │
+│ 2. OCR 识别硬字幕 (PaddleOCR)     │
+│ 3. Whisper 转录（备选）           │
+└──────────────────────────────────┘
     ↓
 1. 解析字幕 → 字幕列表（开始/结束时间 + 文本）
     ↓
 2. AI 筛选 → 过滤无意义对话，保留有学习价值的句子
     ↓
-3. DeepSeek API → 翻译 + 词汇注释
+3. AI API → 翻译 + 词汇注释
     ↓
 4. ffmpeg → 切音频 + 截中间帧（仅处理筛选后的句子）
     ↓
@@ -194,9 +221,11 @@ Hello, how are you?
 
 ## 依赖
 
-- Python 3.8+
-- ffmpeg（系统级安装）
-- DeepSeek API Key
+- Python 3.10+
+- ffmpeg（系统级安装，需在 PATH 中）
+- Node.js 18+（前端开发）
+- AI API Key（DeepSeek / OpenAI / Ollama 等兼容接口）
+- PaddleOCR（可选，用于 OCR 硬字幕提取）
 
 ## 未来展望（完全体）
 
