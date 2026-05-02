@@ -15,10 +15,18 @@ import shutil
 import os
 import json
 import signal
+import logging
 import threading
 import time
 from datetime import datetime
 from dotenv import load_dotenv
+
+# 静默心跳日志
+class HeartbeatFilter(logging.Filter):
+    def filter(self, record):
+        return '/api/heartbeat' not in record.getMessage()
+
+logging.getLogger("uvicorn.access").addFilter(HeartbeatFilter())
 
 from api.subtitles import router as subtitles_router
 from api.process import router as process_router
