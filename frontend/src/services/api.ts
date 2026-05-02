@@ -36,7 +36,7 @@ export const subtitleAPI = {
     return response.data;
   },
 
-  // AI 推荐
+  // AI 推荐（超时 10 分钟，字幕多时 AI 处理需要时间）
   recommend: async (
     subtitles: SubtitleItem[],
     apiKey?: string,
@@ -46,6 +46,8 @@ export const subtitleAPI = {
       subtitles,
       api_key: apiKey || undefined,
       custom_prompt: customPrompt || undefined,
+    }, {
+      timeout: 600000, // 10 分钟
     });
     return response.data;
   },
