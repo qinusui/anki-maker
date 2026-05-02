@@ -27,8 +27,9 @@ from api.cards import router as cards_router
 load_dotenv()
 
 # ---- 自动关闭机制 ----
-_last_heartbeat = time.time() + 60
+_last_heartbeat = time.time() + 120
 _shutdown_lock = threading.Lock()
+HEARTBEAT_TIMEOUT = 20  # 20 秒无心跳才判定关闭，避免处理高负载时误杀
 
 
 def _kill_processes():
@@ -53,12 +54,12 @@ def _kill_processes():
 
 
 def _shutdown_watcher():
-    """后台线程：5 秒无心跳则自动关闭所有服务"""
+    """后台线程：20 秒无心跳则自动关闭所有服务"""
     while True:
         time.sleep(5)
         with _shutdown_lock:
-            if time.time() - _last_heartbeat > 5:
-                print("[自动关闭] 检测到页面已关闭，正在停止所有服务...")
+            if time.time() - _last_heartbeat > HEARTBEAT_TIMEOUT:
+                print(f"[自动关闭] 检测到页面已关闭 ({HEARTBEAT_TIMEOUT}s 无心跳)，正在停止所有服务...")
                 _kill_processes()
                 os._exit(0)
 
