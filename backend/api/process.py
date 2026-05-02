@@ -64,7 +64,9 @@ async def upload_and_process(
     api_key: Optional[str] = Form(None),
     api_base: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
-    pre_processed: Optional[str] = Form(None)
+    pre_processed: Optional[str] = Form(None),
+    padding_start_ms: int = Form(200),
+    padding_end_ms: int = Form(200)
 ):
     """
     上传视频和字幕文件，后台异步处理
@@ -130,7 +132,9 @@ async def upload_and_process(
                 progress_callback=progress_callback,
                 pre_processed=pre_processed_data,
                 api_base=api_base,
-                model_name=model_name
+                model_name=model_name,
+                padding_start_ms=padding_start_ms,
+                padding_end_ms=padding_end_ms
             )
 
             apkg_filename = Path(result["apkg_path"]).name

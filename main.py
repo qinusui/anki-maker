@@ -26,7 +26,9 @@ def run(
     progress_callback=None,
     pre_processed: list = None,
     api_base: str = None,
-    model_name: str = None
+    model_name: str = None,
+    padding_start_ms: int = 200,
+    padding_end_ms: int = 200
 ) -> dict:
     """
     运行完整流程
@@ -131,7 +133,9 @@ def run(
         str(video_path),
         processed,
         str(output_dir),
-        num_workers=num_workers
+        num_workers=num_workers,
+        padding_start_ms=padding_start_ms,
+        padding_end_ms=padding_end_ms
     )
 
     # 合并数据

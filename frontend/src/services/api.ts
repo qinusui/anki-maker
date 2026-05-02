@@ -111,7 +111,9 @@ export const processAPI = {
     apiKey?: string,
     preProcessed?: object[],
     apiBase?: string,
-    modelName?: string
+    modelName?: string,
+    paddingStartMs?: number,
+    paddingEndMs?: number
   ): Promise<{ task_id: string; status: string }> => {
     const formData = new FormData();
     formData.append('video', videoFile);
@@ -125,6 +127,12 @@ export const processAPI = {
     }
     if (modelName) {
       formData.append('model_name', modelName);
+    }
+    if (paddingStartMs !== undefined) {
+      formData.append('padding_start_ms', paddingStartMs.toString());
+    }
+    if (paddingEndMs !== undefined) {
+      formData.append('padding_end_ms', paddingEndMs.toString());
     }
     if (preProcessed && preProcessed.length > 0) {
       formData.append('pre_processed', JSON.stringify(preProcessed));

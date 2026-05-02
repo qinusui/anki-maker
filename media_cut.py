@@ -21,8 +21,7 @@ class MediaItem:
     screenshot_path: str
 
 
-PADDING_START = 0.2  # 开头提前秒数
-PADDING_END   = 0.2  # 结尾延后秒数
+PADDING_DEFAULT_MS = 200  # 默认 padding 毫秒数
 
 
 def get_ffmpeg_path() -> str:
@@ -42,18 +41,22 @@ def get_video_duration(video_path: str) -> float:
     return float(result.stdout.strip())
 
 
-def apply_padding(items: list[dict], video_duration: float) -> list[dict]:
+def apply_padding(items: list[dict], video_duration: float,
+                   padding_start_ms: int = 200, padding_end_ms: int = 200) -> list[dict]:
     """
     为每条字幕的音频切割添加头尾 Padding，避免开头结尾太突兀。
     保持原始 start_sec/end_sec 不变（用于卡片显示），
     新增 cut_start/cut_end 表示实际切割范围。
     """
+    pad_start_s = padding_start_ms / 1000.0
+    pad_end_s   = padding_end_ms / 1000.0
+
     for i, item in enumerate(items):
         start = item["start_sec"]
         end = item["end_sec"]
 
-        pad_start = start - PADDING_START
-        pad_end   = end   + PADDING_END
+        pad_start = start - pad_start_s
+        pad_end   = end   + pad_end_s
 
         # 不超出视频边界
         pad_start = max(0.0, pad_start)
@@ -254,7 +257,9 @@ def process_media_items(
     video_path: str,
     items: list[dict],
     output_dir: str,
-    num_workers: int = 8
+    num_workers: int = 8,
+    padding_start_ms: int = 200,
+    padding_end_ms: int = 200
 ) -> list[MediaItem]:
     """
     批量处理媒体条目
@@ -264,9 +269,8 @@ def process_media_items(
         items: 字幕数据列表，每项包含 start_sec, end_sec
         output_dir: 输出目录
         num_workers: 并行数
-
-    Returns:
-        MediaItem 列表
+        padding_start_ms: 开头提前毫秒数（100-1000，整百）
+        padding_end_ms: 结尾延后毫秒数（100-1000，整百）
     """
     output_path = Path(output_dir)
     audio_dir = output_path / "audio"
@@ -277,7 +281,7 @@ def process_media_items(
 
     # 获取视频时长并计算 padding
     video_duration = get_video_duration(video_path)
-    items = apply_padding(items, video_duration)
+    items = apply_padding(items, video_duration, padding_start_ms, padding_end_ms)
 
     # Step 1: 提取完整音轨（视频只解码一次）
     full_audio_path = str(audio_dir / "_full.mp3")
