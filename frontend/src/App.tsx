@@ -110,6 +110,7 @@ function App() {
 
   const [previewIndex, setPreviewIndex] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
+  const [helpTab, setHelpTab] = useState<'basic' | 'advanced'>('basic');
 
   // AI 推荐相关
   const [recommendations, setRecommendations] = useState<Map<number, AIRecommendation> | null>(null);
@@ -582,16 +583,76 @@ function App() {
         {showHelp && (
           <Card className="mb-6">
             <CardContent>
-              <h3 className="text-lg font-semibold mb-3">使用说明</h3>
-              <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                <li>上传视频文件（.mp4, .mkv, .avi）</li>
-                <li>上传对应的字幕文件（.srt）</li>
-                <li>调整最短时长过滤条件</li>
-                <li>点击"加载字幕"预览内容</li>
-                <li>勾选需要生成卡片的句子</li>
-                <li>点击"开始处理"生成卡片</li>
-                <li>预览卡片后下载 .apkg 文件导入 Anki</li>
-              </ol>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold">使用说明</h3>
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setHelpTab('basic')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      helpTab === 'basic'
+                        ? 'bg-white text-gray-900 shadow'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    基础
+                  </button>
+                  <button
+                    onClick={() => setHelpTab('advanced')}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      helpTab === 'advanced'
+                        ? 'bg-white text-gray-900 shadow'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    进阶
+                  </button>
+                </div>
+              </div>
+
+              {helpTab === 'basic' ? (
+                <ol className="list-decimal list-inside space-y-2 text-gray-700">
+                  <li>上传视频文件（.mp4 / .mkv / .avi）和字幕文件（.srt），或点击「生成字幕」自动转录</li>
+                  <li>在配置区填写 API 地址、Key 和模型名称，点击「测试连接」验证</li>
+                  <li>勾选目标句子，选择提示词预设，点击「AI 推荐」智能分析</li>
+                  <li>确认选中句子后点击「开始处理」，等待生成卡片</li>
+                  <li>预览卡片，下载 .apkg 文件导入 Anki</li>
+                </ol>
+              ) : (
+                <div className="space-y-4 text-sm text-gray-700">
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">AI 配置</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>支持 OpenAI / DeepSeek / Ollama 等兼容接口</li>
+                      <li>填写 API 地址、模型名称、API Key 后可用「测试连接」验证</li>
+                      <li>配置自动保存到浏览器，刷新无需重新填写</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">字幕获取</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>上传 .srt 字幕文件，或仅上传视频点击「生成字幕」使用 Whisper 转录</li>
+                      <li>Whisper 模型可选 tiny / base / small / medium / large，越大越准但越慢</li>
+                      <li>转录支持中/英/日等多语言，默认自动检测</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">AI 推荐</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>仅分析已勾选的句子，支持分批次处理（1-100 条/批）</li>
+                      <li>内置「语法句型」和「背单词」两种预设，可自由修改提示词</li>
+                      <li>推荐结果绿色高亮，点击「仅选推荐」一键筛选</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1">卡片生成</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>每张卡片包含：原文、中文翻译、知识点注释、对应音频片段和视频截图</li>
+                      <li>音频切割有 ±0.2s padding，先整体提取音轨再切片，高效不突兀</li>
+                      <li>支持预览前后翻页，下载 .apkg 后导入 Anki 即可背诵</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
