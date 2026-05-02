@@ -3,10 +3,14 @@
 """
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from pathlib import Path
 from typing import List, Optional
+import asyncio
+import json
 import os
 import shutil
+import threading
 import uuid
 import asyncio
 from datetime import datetime
@@ -16,7 +20,6 @@ from models.schemas import ProcessRequest, ProcessResult, ProcessedCard, Process
 # 导入现有模块
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
-# 导入项目根目录的 main 模块（避免循环导入）
 import importlib.util
 spec = importlib.util.spec_from_file_location("main", str(Path(__file__).parent.parent.parent / "main.py"))
 main_module = importlib.util.module_from_spec(spec)
@@ -29,8 +32,30 @@ router = APIRouter()
 TEMP_DIR = Path(__file__).parent.parent.parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
+# 任务进度存储 (task_id -> progress dict)
+task_store: dict = {}
+task_store_lock = threading.Lock()
 
-@router.post("/upload-and-process", response_model=ProcessResult)
+
+def _build_cards(processed_data):
+    """将处理数据转为 ProcessedCard 列表，文件路径转为 HTTP URL"""
+    cards = []
+    for item in processed_data:
+        audio_path = item.get("audio_path")
+        screenshot_path = item.get("screenshot_path")
+        cards.append(ProcessedCard(
+            sentence=item.get("text", ""),
+            translation=item.get("translation", ""),
+            notes=item.get("notes", ""),
+            start_sec=item.get("start_sec", 0),
+            end_sec=item.get("end_sec", 0),
+            audio_path="/" + Path(audio_path).as_posix() if audio_path else None,
+            screenshot_path="/" + Path(screenshot_path).as_posix() if screenshot_path else None
+        ))
+    return cards
+
+
+@router.post("/upload-and-process")
 async def upload_and_process(
     video: UploadFile = File(...),
     subtitle: UploadFile = File(...),
@@ -39,19 +64,9 @@ async def upload_and_process(
     api_key: Optional[str] = Form(None)
 ):
     """
-    上传视频和字幕文件，并立即开始处理
-
-    Args:
-        video: 视频文件
-        subtitle: 字幕文件
-        min_duration: 最短字幕时长
-        output_dir: 输出目录
-        api_key: DeepSeek API Key
-
-    Returns:
-        ProcessResult: 处理结果
+    上传视频和字幕文件，后台异步处理
+    返回 task_id，前端通过 /progress/{task_id} 轮询进度
     """
-    # 生成唯一的任务 ID
     task_id = str(uuid.uuid4())
     task_dir = TEMP_DIR / task_id
     task_dir.mkdir(exist_ok=True)
@@ -60,71 +75,118 @@ async def upload_and_process(
     video_path = task_dir / video.filename
     subtitle_path = task_dir / subtitle.filename
 
-    try:
-        # 保存视频文件
-        with open(video_path, "wb") as f:
-            shutil.copyfileobj(video.file, f)
+    with open(video_path, "wb") as f:
+        shutil.copyfileobj(video.file, f)
+    with open(subtitle_path, "wb") as f:
+        shutil.copyfileobj(subtitle.file, f)
 
-        # 保存字幕文件
-        with open(subtitle_path, "wb") as f:
-            shutil.copyfileobj(subtitle.file, f)
+    if api_key:
+        os.environ["DEEPSEEK_API_KEY"] = api_key
 
-        # 设置 API Key
-        if api_key:
-            os.environ["DEEPSEEK_API_KEY"] = api_key
+    # 初始化任务进度
+    with task_store_lock:
+        task_store[task_id] = {
+            "status": "preparing",
+            "step": 0,
+            "total_steps": 5,
+            "message": "准备处理...",
+            "details": None,
+            "result": None,
+            "error": None
+        }
 
-        # 在线程池中执行，避免阻塞事件循环（心跳需要响应）
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None,
-            process_cards,
-            str(video_path),
-            str(subtitle_path),
-            output_dir,
-            None,  # api_key (already set in env)
-            min_duration
-        )
+    def progress_callback(step, total_steps, message, details=None):
+        with task_store_lock:
+            task_store[task_id].update({
+                "status": "processing",
+                "step": step,
+                "total_steps": total_steps,
+                "message": message,
+                "details": details
+            })
 
-        # 从返回结果中获取信息
-        apkg_path = result["apkg_path"]
-        cards_count = result["cards_count"]
-        processed_data = result.get("processed", [])
+    def run_processing():
+        try:
+            with task_store_lock:
+                task_store[task_id]["status"] = "processing"
+                task_store[task_id]["message"] = "开始处理..."
 
-        # 将相对路径转为绝对路径，用于下载
-        output_dir_path = Path(output_dir)
-        if not output_dir_path.is_absolute():
-            output_dir_path = Path.cwd() / output_dir_path
+            result = process_cards(
+                video_path=str(video_path),
+                subtitle_path=str(subtitle_path),
+                output_dir=output_dir,
+                min_duration=min_duration,
+                progress_callback=progress_callback
+            )
 
-        apkg_full_path = output_dir_path / apkg_path
-        apkg_filename = Path(apkg_path).name
+            apkg_filename = Path(result["apkg_path"]).name
+            cards = _build_cards(result.get("processed", []))
 
-        # 将 processed 数据转换为 ProcessedCard 格式（文件路径转为 HTTP URL）
-        cards = []
-        for item in processed_data:
-            audio_path = item.get("audio_path")
-            screenshot_path = item.get("screenshot_path")
-            cards.append(ProcessedCard(
-                sentence=item.get("text", ""),
-                translation=item.get("translation", ""),
-                notes=item.get("notes", ""),
-                start_sec=item.get("start_sec", 0),
-                end_sec=item.get("end_sec", 0),
-                audio_path="/" + Path(audio_path).as_posix() if audio_path else None,
-                screenshot_path="/" + Path(screenshot_path).as_posix() if screenshot_path else None
-            ))
+            with task_store_lock:
+                task_store[task_id].update({
+                    "status": "completed",
+                    "step": 5,
+                    "message": f"处理完成，生成了 {result['cards_count']} 张卡片",
+                    "result": {
+                        "success": True,
+                        "message": f"处理完成，生成了 {result['cards_count']} 张卡片",
+                        "cards_count": result["cards_count"],
+                        "apkg_path": apkg_filename,
+                        "cards": [c.model_dump() for c in cards]
+                    }
+                })
 
-        return ProcessResult(
-            success=True,
-            message=f"处理完成，生成了 {cards_count} 张卡片",
-            cards_count=cards_count,
-            apkg_path=apkg_filename,
-            cards=cards
-        )
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            with task_store_lock:
+                task_store[task_id].update({
+                    "status": "error",
+                    "message": f"处理失败: {str(e)}",
+                    "error": str(e)
+                })
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+    # 在后台线程中执行
+    thread = threading.Thread(target=run_processing, daemon=True)
+    thread.start()
+
+    return {"task_id": task_id, "status": "started"}
+
+
+@router.get("/progress/{task_id}")
+async def get_progress(task_id: str):
+    """
+    获取处理进度
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        ProcessProgress: 当前处理进度
+    """
+    with task_store_lock:
+        task = task_store.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    response = {
+        "task_id": task_id,
+        "status": task["status"],
+        "step": task["step"],
+        "total_steps": task["total_steps"],
+        "message": task["message"],
+        "details": task["details"],
+        "error": task.get("error")
+    }
+
+    # 如果已完成，附带结果
+    if task["status"] == "completed" and task["result"]:
+        response["result"] = task["result"]
+    elif task["status"] == "error":
+        response["error"] = task.get("error")
+
+    return response
 
 
 @router.post("/start", response_model=ProcessResult)
@@ -175,25 +237,10 @@ async def start_processing(
             min_duration
         )
 
-        # 从返回结果中获取信息
         apkg_path = result["apkg_path"]
         cards_count = result["cards_count"]
         processed_data = result.get("processed", [])
-
-        # 将 processed 数据转换为 ProcessedCard 格式（文件路径转为 HTTP URL）
-        cards = []
-        for item in processed_data:
-            audio_path = item.get("audio_path")
-            screenshot_path = item.get("screenshot_path")
-            cards.append(ProcessedCard(
-                sentence=item.get("text", ""),
-                translation=item.get("translation", ""),
-                notes=item.get("notes", ""),
-                start_sec=item.get("start_sec", 0),
-                end_sec=item.get("end_sec", 0),
-                audio_path="/" + Path(audio_path).as_posix() if audio_path else None,
-                screenshot_path="/" + Path(screenshot_path).as_posix() if screenshot_path else None
-            ))
+        cards = _build_cards(processed_data)
 
         return ProcessResult(
             success=True,
@@ -207,37 +254,10 @@ async def start_processing(
         raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
 
 
-@router.get("/progress/{task_id}")
-async def get_progress(task_id: str):
-    """
-    获取处理进度（暂未实现）
-
-    Args:
-        task_id: 任务ID
-
-    Returns:
-        ProcessProgress: 当前处理进度
-    """
-    # TODO: 实现真正的进度跟踪
-    return {
-        "step": "processing",
-        "message": "处理中...",
-        "progress": 50,
-        "total_steps": 5,
-        "current_step": 3
-    }
-
-
 @router.post("/validate-api-key")
 async def validate_api_key(api_key: str):
     """
     验证 API Key 是否有效
-
-    Args:
-        api_key: DeepSeek API Key
-
-    Returns:
-        验证结果
     """
     try:
         from openai import OpenAI
@@ -247,7 +267,6 @@ async def validate_api_key(api_key: str):
             base_url="https://api.deepseek.com",
         )
 
-        # 发送一个简单的测试请求
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": "hi"}],

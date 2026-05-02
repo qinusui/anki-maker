@@ -22,7 +22,8 @@ def run(
     num_workers: int = 8,
     whisper_model: str = "base",
     language: str = None,
-    force_transcribe: bool = False
+    force_transcribe: bool = False,
+    progress_callback=None
 ) -> dict:
     """
     运行完整流程
@@ -37,6 +38,7 @@ def run(
         whisper_model: Whisper 模型 (tiny, base, small, medium, large)
         language: 视频语言代码，None 则自动检测
         force_transcribe: 强制使用 Whisper 转录（忽略已有字幕文件）
+        progress_callback: 进度回调 callback(step, total_steps, message, details)
 
     Returns:
         dict: 包含 apkg_path, cards_count, processed 等信息
@@ -45,13 +47,16 @@ def run(
     subtitle_path = Path(subtitle_path) if subtitle_path else None
     output_dir = Path(output_dir)
 
+    TOTAL_STEPS = 5
+
+    def progress(step, message, details=None):
+        print(message)
+        if progress_callback:
+            progress_callback(step, TOTAL_STEPS, message, details)
+
     print("=" * 50)
     print("Anki 卡片生成器")
     print("=" * 50)
-    print(f"视频: {video_path.name}")
-    print(f"字幕: {subtitle_path.name if subtitle_path else '无（将自动转录）'}")
-    print(f"输出: {output_dir}")
-    print()
 
     # Step 0: 检查是否需要转录
     need_transcribe = force_transcribe or (subtitle_path is None or not subtitle_path.exists())
@@ -74,19 +79,20 @@ def run(
         subtitle_path = temp_srt
 
     # Step 1: 解析字幕
-    print("[1/5] 解析字幕文件...")
+    progress(1, "解析字幕文件中...")
     subtitles = parse_srt(subtitle_path)
-    print(f"  共 {len(subtitles)} 条字幕")
 
     # 过滤过短字幕
-    subtitles = filter_short_subtitles(subtitles, min_duration)
-    print(f"  时长 >= {min_duration}s 的有 {len(subtitles)} 条")
+    filtered = filter_short_subtitles(subtitles, min_duration)
+    progress(1, f"解析完成：共 {len(subtitles)} 条，保留 {len(filtered)} 条",
+             {"total": len(subtitles), "filtered": len(filtered)})
+    subtitles = filtered
 
     if not subtitles:
         raise ValueError("没有符合条件的字幕")
 
     # Step 2: AI 处理
-    print("\n[2/5] 调用 DeepSeek AI 处理...")
+    progress(2, f"DeepSeek AI 处理 {len(subtitles)} 条字幕中...")
     api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
         raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或传入 api_key")
@@ -95,9 +101,11 @@ def run(
 
     if not processed:
         raise ValueError("AI 处理后没有保留的字幕")
+    progress(2, f"AI 处理完成，保留 {len(processed)} 条有价值内容",
+             {"retained": len(processed)})
 
     # Step 3: 媒体处理
-    print("\n[3/5] 切割音频和截图...")
+    progress(3, f"切割音频和截图中 ({len(processed)} 个片段)...")
     media_items = process_media_items(
         str(video_path),
         processed,
@@ -110,8 +118,9 @@ def run(
         p["audio_path"] = m.audio_path
         p["screenshot_path"] = m.screenshot_path
 
+    progress(3, f"媒体处理完成")
     # Step 4: 打包
-    print("\n[4/5] 打包 Anki 牌组...")
+    progress(4, f"打包 Anki 牌组中 ({len(processed)} 张卡片)...")
     audio_dir = output_dir / "audio"
     screenshot_dir = output_dir / "screenshots"
 
