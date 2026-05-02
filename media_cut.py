@@ -230,14 +230,26 @@ def capture_screenshots_batch(
 
         subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
-        # 匹配输出文件到 index
-        for i, (idx, _ts) in enumerate(batch):
-            src = Path(output_dir) / f"_batch{batch_idx}_{i+1:03d}.jpg"
-            dst = Path(output_dir) / f"card_{idx:04d}.jpg"
-            if src.exists():
-                dst.unlink(missing_ok=True)
-                src.rename(dst)
-                results[idx] = str(dst)
+        # 检查输出文件数量是否与批次一致
+        actual_files = sorted(Path(output_dir).glob(f"_batch{batch_idx}_*.jpg"))
+        if len(actual_files) == len(batch):
+            # 1:1 匹配，使用位置映射
+            for i, (idx, _ts) in enumerate(batch):
+                src = Path(output_dir) / f"_batch{batch_idx}_{i+1:03d}.jpg"
+                dst = Path(output_dir) / f"card_{idx:04d}.jpg"
+                if src.exists():
+                    dst.unlink(missing_ok=True)
+                    src.rename(dst)
+                    results[idx] = str(dst)
+        else:
+            # 帧数不匹配（高帧率时 select 命中多帧），回退逐条截
+            for idx, ts in batch:
+                path = str(Path(output_dir) / f"card_{idx:04d}.jpg")
+                if capture_screenshot(video_path, ts, path, quality):
+                    results[idx] = path
+            # 清理批量产生的临时文件
+            for f in actual_files:
+                f.unlink(missing_ok=True)
 
         remaining = remaining[len(batch):]
         batch_idx += 1

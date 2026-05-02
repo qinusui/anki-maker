@@ -34,6 +34,23 @@ class SubtitleListResponse(BaseModel):
     filtered: int
 
 
+class EmbeddedSubtitleStream(BaseModel):
+    """视频内嵌字幕流信息"""
+    index: int
+    codec: str
+    language: str = ""
+    title: str = ""
+    text_based: bool = True
+
+
+class ExtractEmbeddedResponse(BaseModel):
+    """提取内嵌字幕响应"""
+    found: bool
+    streams: list = []
+    extracted: Optional[dict] = None
+    message: str = ""
+
+
 class ProcessRequest(BaseModel):
     """处理请求"""
     video_path: str

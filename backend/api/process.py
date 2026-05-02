@@ -28,6 +28,25 @@ process_cards = main_module.run
 
 router = APIRouter()
 
+# 常见 API 错误信息的中文翻译
+_API_ERROR_MAP = [
+    ("model does not exist", "模型不存在，请检查模型名称是否正确"),
+    ("invalid api key", "API Key 无效"),
+    ("insufficient", "API 余额不足"),
+    ("rate limit", "请求太频繁，请稍后再试"),
+    ("timeout", "请求超时，请检查网络或 API 地址"),
+    ("connection", "无法连接到 API 服务器，请检查地址是否正确"),
+]
+
+
+def _translate_api_error(msg: str) -> str:
+    """将 API 错误信息翻译为中文"""
+    lower = msg.lower()
+    for keyword, chinese in _API_ERROR_MAP:
+        if keyword in lower:
+            return chinese
+    return msg
+
 # 临时文件存储目录
 TEMP_DIR = Path(__file__).parent.parent.parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
@@ -327,7 +346,8 @@ async def test_connection(
         return {"valid": True, "message": f"连接成功（{model_name}）"}
 
     except Exception as e:
-        return {"valid": False, "message": str(e)}
+        msg = _translate_api_error(str(e))
+        return {"valid": False, "message": msg}
 
 
 @router.post("/list-models")

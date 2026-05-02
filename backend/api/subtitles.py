@@ -11,14 +11,37 @@ import os
 import asyncio
 from typing import List, Optional
 
-from models.schemas import SubtitleItem, SubtitleListResponse, AIRecommendRequest, AIRecommendItem, AIRecommendResponse
+from models.schemas import (
+    SubtitleItem, SubtitleListResponse, AIRecommendRequest,
+    AIRecommendItem, AIRecommendResponse, EmbeddedSubtitleStream, ExtractEmbeddedResponse
+)
 
 # 导入现有的字幕解析模块
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from parse_srt import parse_srt, filter_short_subtitles
+from ocr_subtitle import detect_visible_subtitles, extract_hard_subtitles
 
 router = APIRouter()
+
+# 常见 API 错误信息的中文翻译
+_API_ERROR_TRANSLATE = [
+    ("model does not exist", "模型不存在，请检查模型名称"),
+    ("invalid api key", "API Key 无效"),
+    ("insufficient", "API 余额不足"),
+    ("rate limit", "请求太频繁，请稍后重试"),
+    ("timeout", "请求超时"),
+    ("connection", "无法连接 API 服务器"),
+]
+
+
+def _tr(msg: str) -> str:
+    """将 API 错误信息翻译为中文"""
+    lower = msg.lower()
+    for keyword, chinese in _API_ERROR_TRANSLATE:
+        if keyword in lower:
+            return chinese
+    return msg
 
 
 @router.post("/upload", response_model=SubtitleListResponse)
@@ -82,6 +105,321 @@ async def upload_subtitle(
         # 清理临时文件
         if temp_path.exists():
             temp_path.unlink()
+
+
+# 可从视频提取的文本字幕编码
+_TEXT_SUBTITLE_CODECS = {"subrip", "mov_text", "webvtt", "ass", "ssa", "srt", "sami", "microdvd", "text", "stl", "eia_608", "eia_708"}
+
+
+@router.post("/extract-embedded-subs")
+async def extract_embedded_subtitles(
+    video: UploadFile = File(...),
+    stream_index: int = 0,
+    min_duration: float = 1.0
+):
+    """
+    检测并提取视频内嵌字幕（优先于 Whisper 转录）
+
+    Args:
+        video: 视频文件
+        stream_index: 要提取的字幕流序号（默认第一个）
+        min_duration: 最短字幕时长
+
+    Returns:
+        ExtractEmbeddedResponse: 字幕流列表及提取结果
+    """
+    import subprocess
+
+    if not video.filename:
+        raise HTTPException(status_code=400, detail="未提供视频文件")
+
+    temp_dir = Path(__file__).parent.parent.parent / "temp"
+    temp_dir.mkdir(exist_ok=True)
+
+    video_path = temp_dir / f"extract_{video.filename}"
+
+    try:
+        with open(video_path, "wb") as f:
+            shutil.copyfileobj(video.file, f)
+
+        # 1. 用 ffprobe 检测字幕流
+        probe_result = subprocess.run([
+            "ffprobe", "-v", "error",
+            "-select_streams", "s",
+            "-show_entries", "stream=index:codec_name:stream_tags=language,title",
+            "-of", "json",
+            str(video_path)
+        ], capture_output=True, text=True, timeout=30)
+
+        if probe_result.returncode != 0:
+            raise HTTPException(status_code=500, detail="ffprobe 检测失败，请确认已安装 ffmpeg")
+
+        probe_data = json.loads(probe_result.stdout)
+        streams = probe_data.get("streams", [])
+
+        if not streams:
+            return {"found": False, "streams": [], "extracted": None,
+                    "message": "视频中没有内嵌字幕，请使用 Whisper 转录"}
+
+        # 分类字幕流
+        subtitle_streams = []
+        for s in streams:
+            codec = s.get("codec_name", "unknown")
+            tags = s.get("tags", {})
+            subtitle_streams.append({
+                "index": s.get("index", 0),
+                "codec": codec,
+                "language": tags.get("language", "unknown"),
+                "title": tags.get("title", ""),
+                "text_based": codec in _TEXT_SUBTITLE_CODECS
+            })
+
+        text_streams = [s for s in subtitle_streams if s["text_based"]]
+        image_streams = [s for s in subtitle_streams if not s["text_based"]]
+
+        if not text_streams:
+            image_names = ", ".join(s["codec"] for s in image_streams)
+            return {
+                "found": True, "streams": subtitle_streams, "extracted": None,
+                "message": f"内嵌字幕为图像格式（{image_names}），无法直接提取文本，请使用 Whisper 转录"
+            }
+
+        # 2. 选择字幕流并提取
+        if stream_index >= len(text_streams):
+            stream_index = 0
+        target = text_streams[stream_index]
+
+        srt_path = temp_dir / f"extracted_{video.filename}.srt"
+        extract_cmd = [
+            "ffmpeg", "-y",
+            "-i", str(video_path),
+            "-map", f"0:s:{stream_index}",
+            "-f", "srt",
+            str(srt_path)
+        ]
+        subprocess.run(extract_cmd, capture_output=True, text=True, timeout=60)
+
+        if not srt_path.exists() or srt_path.stat().st_size == 0:
+            return {
+                "found": True, "streams": subtitle_streams, "extracted": None,
+                "message": "提取字幕失败，请尝试 Whisper 转录"
+            }
+
+        # 3. 解析字幕
+        import_subtitles = parse_srt(str(srt_path))
+        original_count = len(import_subtitles)
+        import_subtitles = filter_short_subtitles(import_subtitles, min_duration)
+
+        subtitle_items = [
+            SubtitleItem(
+                index=sub.index,
+                start_sec=round(sub.start_sec, 3),
+                end_sec=round(sub.end_sec, 3),
+                text=sub.text,
+                duration=round(sub.end_sec - sub.start_sec, 3)
+            )
+            for sub in import_subtitles
+        ]
+
+        return {
+            "found": True,
+            "streams": subtitle_streams,
+            "extracted": {
+                "stream_index": target["index"],
+                "codec": target["codec"],
+                "language": target["language"],
+                "subtitles": [s.model_dump() for s in subtitle_items],
+                "total": original_count,
+                "filtered": len(subtitle_items)
+            },
+            "message": f"已从视频提取 {len(subtitle_items)} 条内嵌字幕"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"提取字幕失败: {str(e)}")
+
+    finally:
+        if video_path.exists():
+            video_path.unlink()
+        srt_temp = temp_dir / f"extracted_{video.filename}.srt"
+        if srt_temp.exists():
+            srt_temp.unlink(missing_ok=True)
+
+
+# ── OCR 硬字幕识别 ──────────────────────────────────────────────
+
+import threading as _ocr_threading
+import uuid as _ocr_uuid
+
+_ocr_store: dict = {}
+_ocr_lock = _ocr_threading.Lock()
+
+
+@router.post("/detect-visible-subs")
+async def detect_visible_subs_endpoint(video: UploadFile = File(...)):
+    """
+    快速检测视频是否有可见硬字幕（取若干帧底部区域做 OCR）
+    """
+    if not video.filename:
+        raise HTTPException(status_code=400, detail="未提供视频文件")
+
+    temp_dir = Path(__file__).parent.parent.parent / "temp"
+    temp_dir.mkdir(exist_ok=True)
+    video_path = temp_dir / f"detect_{video.filename}"
+
+    try:
+        with open(video_path, "wb") as f:
+            shutil.copyfileobj(video.file, f)
+
+        has_subs = detect_visible_subtitles(str(video_path))
+        return {"has_visible_subtitles": has_subs}
+
+    except ImportError:
+        return {"has_visible_subtitles": False, "message": "PaddleOCR 未安装"}
+    except Exception as e:
+        return {"has_visible_subtitles": False, "message": f"检测失败: {str(e)}"}
+
+    finally:
+        if video_path.exists():
+            video_path.unlink()
+
+
+def _run_ocr_extract(task_id: str, video_path_str: str, lang: str,
+                     min_duration: float, conf_threshold: float):
+    """后台执行 OCR 硬字幕提取"""
+
+    def update(status, step, message):
+        with _ocr_lock:
+            _ocr_store[task_id] = {"status": status, "step": step, "total_steps": 3, "message": message}
+
+    srt_path_str = str(Path(video_path_str).with_suffix(".ocr.srt"))
+
+    try:
+        update("processing", 0, "检测视频是否有可见字幕...")
+
+        if not detect_visible_subtitles(video_path_str):
+            update("error", 0, "未检测到可见字幕，请使用 Whisper 转录")
+            return
+
+        def progress(step, total, message):
+            pct = min(step / max(total, 1), 1.0)
+            s = int(pct * 2) + 1  # map to step 1-2
+            update("processing", s, message)
+
+        update("processing", 1, "OCR 识别硬字幕中...")
+        segments = extract_hard_subtitles(
+            video_path_str, lang=lang,
+            conf_threshold=conf_threshold,
+            progress_callback=progress
+        )
+
+        if not segments:
+            update("error", 0, "OCR 未识别到字幕文字")
+            return
+
+        # 转为标准 SRT 并解析
+        from whisper_transcribe import save_as_srt
+        save_as_srt(segments, srt_path_str)
+
+        subtitles = parse_srt(srt_path_str)
+        original_count = len(subtitles)
+        subtitles = filter_short_subtitles(subtitles, min_duration)
+
+        subtitle_items = [
+            SubtitleItem(
+                index=sub.index,
+                start_sec=round(sub.start_sec, 3),
+                end_sec=round(sub.end_sec, 3),
+                text=sub.text,
+                duration=round(sub.end_sec - sub.start_sec, 3)
+            )
+            for sub in subtitles
+        ]
+
+        with _ocr_lock:
+            _ocr_store[task_id] = {
+                "status": "completed",
+                "step": 3,
+                "total_steps": 3,
+                "message": f"OCR 完成，识别 {len(subtitle_items)} 条字幕",
+                "result": {
+                    "subtitles": [s.model_dump() for s in subtitle_items],
+                    "total": original_count,
+                    "filtered": len(subtitle_items),
+                    "source": "ocr"
+                }
+            }
+
+    except ImportError:
+        with _ocr_lock:
+            _ocr_store[task_id] = {
+                "status": "error", "step": 0, "total_steps": 3,
+                "message": "PaddleOCR 未安装", "error": "PaddleOCR 未安装"
+            }
+    except Exception as e:
+        with _ocr_lock:
+            _ocr_store[task_id] = {
+                "status": "error", "step": 0, "total_steps": 3,
+                "message": f"OCR 提取失败: {str(e)}", "error": str(e)
+            }
+
+    finally:
+        if Path(video_path_str).exists():
+            Path(video_path_str).unlink(missing_ok=True)
+        if Path(srt_path_str).exists():
+            Path(srt_path_str).unlink(missing_ok=True)
+
+
+@router.post("/ocr-extract")
+async def ocr_extract_endpoint(
+    video: UploadFile = File(...),
+    min_duration: float = 1.0,
+    lang: str = "ch",
+    conf_threshold: float = 0.65
+):
+    """
+    OCR 识别视频硬字幕（后台异步，通过 progress 端点轮询）
+    """
+    if not video.filename:
+        raise HTTPException(status_code=400, detail="未提供视频文件")
+
+    temp_dir = Path(__file__).parent.parent.parent / "temp"
+    temp_dir.mkdir(exist_ok=True)
+
+    video_path = temp_dir / f"ocr_{video.filename}"
+    with open(video_path, "wb") as f:
+        shutil.copyfileobj(video.file, f)
+
+    task_id = str(_ocr_uuid.uuid4())
+
+    with _ocr_lock:
+        _ocr_store[task_id] = {
+            "status": "preparing", "step": 0, "total_steps": 3,
+            "message": "准备 OCR 识别..."
+        }
+
+    thread = _ocr_threading.Thread(
+        target=_run_ocr_extract,
+        args=(task_id, str(video_path), lang, min_duration, conf_threshold),
+        daemon=True
+    )
+    thread.start()
+
+    return {"task_id": task_id, "status": "started"}
+
+
+@router.get("/ocr-extract/progress/{task_id}")
+async def ocr_extract_progress(task_id: str):
+    """获取 OCR 识别的实时进度"""
+    with _ocr_lock:
+        task = _ocr_store.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    return task
 
 
 DEFAULT_CRITERIA = """你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
@@ -179,9 +517,10 @@ def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_p
                 results.extend(parsed)
 
         except Exception as e:
-            print(f"    批次处理失败: {e}")
+            msg = _tr(str(e))
+            print(f"    批次处理失败: {msg}")
             for item in batch:
-                results.append({"index": item["index"], "include": False, "reason": f"处理失败: {e}"})
+                results.append({"index": item["index"], "include": False, "reason": f"处理失败: {msg}"})
 
     # 构建最终推荐结果
     recommendations = []
@@ -256,25 +595,31 @@ _transcribe_lock = _threading.Lock()
 _PROJECT_ROOT = str(Path(__file__).parent.parent.parent)
 
 
-def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, language: str, result_path: str):
-    """在独立进程中运行 Whisper 转录，避免 GIL 争抢阻塞事件循环"""
+def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, language: str,
+                        result_path: str, progress_pipe):
+    """在独立进程中运行 Whisper 转录，通过 Pipe 报告进度"""
     import sys as _sys
     _sys.path.append(_PROJECT_ROOT)
 
     import whisper
     from whisper_transcribe import save_as_srt
 
+    progress_pipe.send({"step": "loading", "message": f"加载 {model_name} 模型..."})
     model = whisper.load_model(model_name)
+
+    progress_pipe.send({"step": "transcribing", "message": "转录中..."})
     result = model.transcribe(
         video_path,
         language=language,
         word_timestamps=True,
-        verbose=True  # 子进程 verbose 不污染主进程日志
+        verbose=False
     )
 
     segments = [{"start": s["start"], "end": s["end"], "text": s["text"].strip()}
                 for s in result.get("segments", [])]
     save_as_srt(segments, srt_path)
+
+    progress_pipe.send({"step": "done", "segment_count": len(segments)})
 
     # 保存转录元信息到临时 JSON，供主进程读取
     import json as _json
@@ -286,6 +631,7 @@ def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
                          model_name: str, language: str, min_duration: float):
     """后台执行转录，Whisper 放入独立进程避免 GIL 阻塞事件循环"""
     import multiprocessing
+    import time as _time
 
     def update(status, step, message):
         with _transcribe_lock:
@@ -294,16 +640,43 @@ def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
     result_json_path = str(Path(video_path_str).with_suffix(".result.json"))
 
     try:
-        update("processing", 1, "加载 Whisper 模型并转录中...")
+        update("processing", 1, "准备转录...")
 
-        # 在独立进程中运行 Whisper，彻底隔离 GIL
+        # 用 Pipe 从子进程接收进度
+        parent_conn, child_conn = multiprocessing.Pipe(duplex=False)
+
         proc = multiprocessing.Process(
             target=_whisper_subprocess,
-            args=(str(video_path_str), str(srt_path_str), model_name, language, result_json_path),
+            args=(str(video_path_str), str(srt_path_str), model_name, language,
+                  result_json_path, child_conn),
             daemon=True
         )
         proc.start()
-        proc.join()  # 等待转录完成，但不阻塞主进程的事件循环（在线程中等待）
+        child_conn.close()  # 父端不写，关闭子端引用
+
+        transcribe_start = 0
+        while proc.is_alive():
+            if parent_conn.poll(1):
+                try:
+                    msg = parent_conn.recv()
+                    step = msg.get("step")
+                    if step == "loading":
+                        update("processing", 1, msg.get("message", "加载模型中..."))
+                    elif step == "transcribing":
+                        transcribe_start = _time.time()
+                        update("processing", 2, "转录中，请耐心等待...")
+                    elif step == "done":
+                        break
+                except (EOFError, OSError):
+                    break
+            else:
+                # 无进度消息时显示已用时间
+                if transcribe_start:
+                    elapsed = int(_time.time() - transcribe_start)
+                    mins, secs = elapsed // 60, elapsed % 60
+                    update("processing", 2, f"转录中... 已用时 {mins}分{secs}秒")
+
+        proc.join()
 
         if proc.exitcode != 0:
             raise RuntimeError(f"Whisper 进程异常退出 (code={proc.exitcode})")
