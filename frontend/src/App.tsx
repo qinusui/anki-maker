@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Film, FileText, Download, Settings, Info } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/Card';
@@ -61,6 +61,16 @@ function App() {
 
   const [previewIndex, setPreviewIndex] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
+
+  // 每 15 秒发送心跳，页面关闭 30 秒后自动停止所有服务
+  useEffect(() => {
+    const sendHeartbeat = () => {
+      fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+    };
+    sendHeartbeat(); // 立即发送一次
+    const interval = setInterval(sendHeartbeat, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 加载字幕
   const handleLoadSubtitles = async () => {

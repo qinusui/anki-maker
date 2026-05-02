@@ -99,7 +99,7 @@ async def upload_and_process(
             audio_path = item.get("audio_path")
             screenshot_path = item.get("screenshot_path")
             cards.append(ProcessedCard(
-                sentence=item.get("sentence", ""),
+                sentence=item.get("text", ""),
                 translation=item.get("translation", ""),
                 notes=item.get("notes", ""),
                 start_sec=item.get("start_sec", 0),
@@ -107,7 +107,6 @@ async def upload_and_process(
                 audio_path="/" + Path(audio_path).as_posix() if audio_path else None,
                 screenshot_path="/" + Path(screenshot_path).as_posix() if screenshot_path else None
             ))
-        ]
 
         return ProcessResult(
             success=True,
@@ -178,7 +177,7 @@ async def start_processing(
             audio_path = item.get("audio_path")
             screenshot_path = item.get("screenshot_path")
             cards.append(ProcessedCard(
-                sentence=item.get("sentence", ""),
+                sentence=item.get("text", ""),
                 translation=item.get("translation", ""),
                 notes=item.get("notes", ""),
                 start_sec=item.get("start_sec", 0),
@@ -186,7 +185,6 @@ async def start_processing(
                 audio_path="/" + Path(audio_path).as_posix() if audio_path else None,
                 screenshot_path="/" + Path(screenshot_path).as_posix() if screenshot_path else None
             ))
-        ]
 
         return ProcessResult(
             success=True,

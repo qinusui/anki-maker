@@ -12,6 +12,10 @@ from typing import List, Optional
 import uvicorn
 import shutil
 import os
+import json
+import signal
+import threading
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -52,6 +56,69 @@ app.include_router(subtitles_router, prefix="/api/subtitles", tags=["subtitles"]
 app.include_router(process_router, prefix="/api/process", tags=["process"])
 app.include_router(cards_router, prefix="/api/cards", tags=["cards"])
 
+# ---- 自动关闭机制 ----
+_last_heartbeat = time.time()
+_shutdown_lock = threading.Lock()
+
+
+def _kill_processes():
+    """读取 PID 文件并关闭前后端进程"""
+    pid_file = Path(__file__).parent / 'pids.json'
+    if not pid_file.exists():
+        return
+    try:
+        pids = json.loads(pid_file.read_text())
+    except Exception:
+        return
+
+    # 先关闭前端，再关闭后端
+    for key in ('frontend_pid', 'backend_pid'):
+        pid = pids.get(key)
+        if pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except Exception:
+                pass
+
+    # 清理 PID 文件
+    pid_file.unlink(missing_ok=True)
+
+
+def _shutdown_watcher():
+    """后台线程：30 秒无心跳则自动关闭所有服务"""
+    while True:
+        time.sleep(5)
+        with _shutdown_lock:
+            if time.time() - _last_heartbeat > 30:
+                print("[自动关闭] 检测到页面已关闭，正在停止所有服务...")
+                _kill_processes()
+                os._exit(0)
+
+
+# 仅在 start-all.py 启动时（存在 PID 文件）启用自动关闭
+_pid_file = Path(__file__).parent / 'pids.json'
+if _pid_file.exists():
+    _watcher_thread = threading.Thread(target=_shutdown_watcher, daemon=True)
+    _watcher_thread.start()
+
+
+@app.post("/api/heartbeat")
+async def heartbeat():
+    """前端心跳 — 表明页面仍在使用中"""
+    global _last_heartbeat
+    with _shutdown_lock:
+        _last_heartbeat = time.time()
+    return {"status": "ok"}
+
+
+@app.post("/api/shutdown")
+async def shutdown():
+    """立即关闭所有服务"""
+    _kill_processes()
+    return {"message": "Shutting down..."}
+
+
+# ---- 业务路由 ----
 
 @app.get("/")
 async def root():
