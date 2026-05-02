@@ -62,14 +62,20 @@ function App() {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
 
-  // 每 15 秒发送心跳，页面关闭 30 秒后自动停止所有服务
+  // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
   useEffect(() => {
     const sendHeartbeat = () => {
       fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
     };
-    sendHeartbeat(); // 立即发送一次
-    const interval = setInterval(sendHeartbeat, 3000);
-    return () => clearInterval(interval);
+    const timer = setTimeout(() => {
+      sendHeartbeat();
+      const interval = setInterval(sendHeartbeat, 3000);
+      (window as any).__heartbeatInterval = interval;
+    }, 6000);
+    return () => {
+      clearTimeout(timer);
+      clearInterval((window as any).__heartbeatInterval);
+    };
   }, []);
 
   // 加载字幕
