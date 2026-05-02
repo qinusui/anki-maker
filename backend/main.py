@@ -3,6 +3,7 @@ Anki 卡片生成器 - FastAPI 后端服务
 提供 RESTful API 供前端调用
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -24,36 +25,6 @@ from api.process import router as process_router
 from api.cards import router as cards_router
 
 load_dotenv()
-
-app = FastAPI(
-    title="Anki Card Generator API",
-    description="智能提取视频学习内容，生成 Anki 卡片",
-    version="1.0.0"
-)
-
-# CORS 配置
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 挂载静态文件目录
-static_dir = Path(__file__).parent / "static"
-static_dir.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-
-# 挂载输出目录供下载和预览
-output_dir = Path(__file__).parent / "output"
-output_dir.mkdir(exist_ok=True)
-app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
-
-# 注册路由
-app.include_router(subtitles_router, prefix="/api/subtitles", tags=["subtitles"])
-app.include_router(process_router, prefix="/api/process", tags=["process"])
-app.include_router(cards_router, prefix="/api/cards", tags=["cards"])
 
 # ---- 自动关闭机制 ----
 _last_heartbeat = time.time() + 60
@@ -92,10 +63,46 @@ def _shutdown_watcher():
                 os._exit(0)
 
 
-_pid_file = Path(__file__).parent / 'pids.json'
-if _pid_file.exists():
-    _watcher_thread = threading.Thread(target=_shutdown_watcher, daemon=True)
-    _watcher_thread.start()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 仅在 start-all.py 启动时（存在 PID 文件）且在真正服务进程（非 reloader）中启用
+    _pid_file = Path(__file__).parent / 'pids.json'
+    if _pid_file.exists():
+        _watcher_thread = threading.Thread(target=_shutdown_watcher, daemon=True)
+        _watcher_thread.start()
+    yield
+
+
+app = FastAPI(
+    title="Anki Card Generator API",
+    description="智能提取视频学习内容，生成 Anki 卡片",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# CORS 配置
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 挂载静态文件目录
+static_dir = Path(__file__).parent / "static"
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# 挂载输出目录供下载和预览
+output_dir = Path(__file__).parent / "output"
+output_dir.mkdir(exist_ok=True)
+app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
+
+# 注册路由
+app.include_router(subtitles_router, prefix="/api/subtitles", tags=["subtitles"])
+app.include_router(process_router, prefix="/api/process", tags=["process"])
+app.include_router(cards_router, prefix="/api/cards", tags=["cards"])
 
 
 @app.post("/api/heartbeat")
