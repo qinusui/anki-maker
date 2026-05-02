@@ -93,18 +93,20 @@ async def upload_and_process(
         apkg_full_path = output_dir_path / apkg_path
         apkg_filename = Path(apkg_path).name
 
-        # 将 processed 数据转换为 ProcessedCard 格式
-        cards = [
-            ProcessedCard(
+        # 将 processed 数据转换为 ProcessedCard 格式（文件路径转为 HTTP URL）
+        cards = []
+        for item in processed_data:
+            audio_path = item.get("audio_path")
+            screenshot_path = item.get("screenshot_path")
+            cards.append(ProcessedCard(
                 sentence=item.get("sentence", ""),
                 translation=item.get("translation", ""),
                 notes=item.get("notes", ""),
                 start_sec=item.get("start_sec", 0),
                 end_sec=item.get("end_sec", 0),
-                audio_path=item.get("audio_path"),
-                screenshot_path=item.get("screenshot_path")
-            )
-            for item in processed_data
+                audio_path="/" + Path(audio_path).as_posix() if audio_path else None,
+                screenshot_path="/" + Path(screenshot_path).as_posix() if screenshot_path else None
+            ))
         ]
 
         return ProcessResult(
@@ -170,18 +172,20 @@ async def start_processing(
         cards_count = result["cards_count"]
         processed_data = result.get("processed", [])
 
-        # 将 processed 数据转换为 ProcessedCard 格式
-        cards = [
-            ProcessedCard(
+        # 将 processed 数据转换为 ProcessedCard 格式（文件路径转为 HTTP URL）
+        cards = []
+        for item in processed_data:
+            audio_path = item.get("audio_path")
+            screenshot_path = item.get("screenshot_path")
+            cards.append(ProcessedCard(
                 sentence=item.get("sentence", ""),
                 translation=item.get("translation", ""),
                 notes=item.get("notes", ""),
                 start_sec=item.get("start_sec", 0),
                 end_sec=item.get("end_sec", 0),
-                audio_path=item.get("audio_path"),
-                screenshot_path=item.get("screenshot_path")
-            )
-            for item in processed_data
+                audio_path="/" + Path(audio_path).as_posix() if audio_path else None,
+                screenshot_path="/" + Path(screenshot_path).as_posix() if screenshot_path else None
+            ))
         ]
 
         return ProcessResult(

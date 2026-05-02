@@ -96,7 +96,7 @@ async def preview_cards(cards: List[ProcessedCard]):
     <div style="padding: 20px; font-family: Arial, sans-serif;">
     """
 
-    for idx, card in enumerate(cards[:5]):  # 只预览前5张
+    for idx, card in enumerate(cards[:10]):  # 只预览前10张
         html += f"""
         <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
             <h3 style="margin: 0 0 12px 0; color: #333;">卡片 #{idx + 1}</h3>

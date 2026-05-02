@@ -41,10 +41,11 @@ static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-# 挂载输出目录供下载 - 与 process.py 中的 ./output 保持一致
+# 挂载输出目录供下载和预览 - 与 process.py 中的 ./output 保持一致
 # 因为服务从 backend/ 目录启动，CWD 就是 backend/
 output_dir = Path(__file__).parent / "output"
 output_dir.mkdir(exist_ok=True)
+app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
 
 # 注册路由
 app.include_router(subtitles_router, prefix="/api/subtitles", tags=["subtitles"])
