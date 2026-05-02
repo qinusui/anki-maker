@@ -262,8 +262,12 @@ function App() {
 
   // 处理选中的字幕
   const handleProcess = async () => {
-    if (!videoFile || !subtitleFile) {
-      alert('请先上传视频和字幕文件');
+    if (!videoFile) {
+      alert('请先上传视频文件');
+      return;
+    }
+    if (subtitles.length === 0) {
+      alert('请先加载或生成字幕');
       return;
     }
 
