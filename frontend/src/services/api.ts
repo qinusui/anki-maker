@@ -181,11 +181,28 @@ export const processAPI = {
     return response.data;
   },
 
-  // 验证 API Key
-  validateApiKey: async (apiKey: string): Promise<{ valid: boolean; message: string }> => {
-    const response = await api.post<{ valid: boolean; message: string }>('/api/process/validate-api-key', null, {
-      params: { api_key: apiKey },
-    });
+  // 测试 AI 连接
+  testConnection: async (
+    apiKey: string,
+    apiBase: string,
+    modelName: string
+  ): Promise<{ valid: boolean; message: string }> => {
+    const response = await api.post<{ valid: boolean; message: string }>(
+      '/api/process/test-connection', null,
+      { params: { api_key: apiKey, api_base: apiBase, model_name: modelName } }
+    );
+    return response.data;
+  },
+
+  // 获取模型列表
+  listModels: async (
+    apiKey: string,
+    apiBase: string
+  ): Promise<{ models: string[] }> => {
+    const response = await api.post<{ models: string[] }>(
+      '/api/process/list-models', null,
+      { params: { api_key: apiKey, api_base: apiBase } }
+    );
     return response.data;
   },
 };

@@ -302,26 +302,48 @@ async def start_processing(
         raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
 
 
-@router.post("/validate-api-key")
-async def validate_api_key(api_key: str):
-    """
-    验证 API Key 是否有效
-    """
+@router.post("/test-connection")
+async def test_connection(
+    api_key: str,
+    api_base: str = "https://api.deepseek.com",
+    model_name: str = "deepseek-chat"
+):
+    """测试 AI API 连接是否有效"""
     try:
         from openai import OpenAI
 
-        client = OpenAI(
-            api_key=api_key,
-            base_url="https://api.deepseek.com",
-        )
+        client = OpenAI(api_key=api_key, base_url=api_base)
 
-        response = client.chat.completions.create(
-            model="deepseek-chat",
+        client.chat.completions.create(
+            model=model_name,
             messages=[{"role": "user", "content": "hi"}],
-            max_tokens=10
+            max_tokens=5
         )
 
-        return {"valid": True, "message": "API Key 有效"}
+        return {"valid": True, "message": f"连接成功（{model_name}）"}
 
     except Exception as e:
-        return {"valid": False, "message": f"API Key 无效: {str(e)}"}
+        return {"valid": False, "message": str(e)}
+
+
+@router.post("/list-models")
+async def list_models(
+    api_key: str,
+    api_base: str = "https://api.deepseek.com"
+):
+    """获取可用模型列表"""
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key, base_url=api_base)
+        models = client.models.list()
+
+        model_ids = sorted(
+            [m.id for m in models],
+            key=lambda x: (not x.startswith("deepseek"), x)
+        )
+
+        return {"models": model_ids}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取模型列表失败: {str(e)}")

@@ -90,6 +90,9 @@ function App() {
   const [modelName, setModelName] = useState(savedConfig?.modelName || 'deepseek-chat');
   const [apiKey, setApiKey] = useState(savedConfig?.apiKey || '');
   const [configExpanded, setConfigExpanded] = useState(!savedConfig); // 首次展开
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ valid: boolean; message: string } | null>(null);
+  const [modelList, setModelList] = useState<string[] | null>(null);
   const [minDuration, setMinDuration] = useState(1.0);
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -178,6 +181,31 @@ function App() {
       if (transcribeAnimRef.current) clearInterval(transcribeAnimRef.current);
     };
   }, [isTranscribing, transcribeStep]);
+
+  // 测试 AI 连接
+  const handleTestConnection = async () => {
+    if (!apiKey) return;
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const res = await processAPI.testConnection(apiKey, apiBase, modelName);
+      setTestResult(res);
+    } catch {
+      setTestResult({ valid: false, message: '请求失败，请检查 API 地址' });
+    }
+    setIsTesting(false);
+  };
+
+  // 获取模型列表
+  const handleListModels = async () => {
+    if (!apiKey) return;
+    try {
+      const res = await processAPI.listModels(apiKey, apiBase);
+      setModelList(res.models);
+    } catch {
+      setModelList([]);
+    }
+  };
 
   // Whisper 转录视频生成字幕
   const handleTranscribe = async () => {
@@ -637,8 +665,49 @@ function App() {
                       label="API Key"
                       placeholder="输入你的 API Key"
                       value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
+                      onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
                     />
+                    <div className="flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleTestConnection}
+                        disabled={isTesting || !apiKey}
+                      >
+                        {isTesting ? '测试中...' : '测试连接'}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleListModels}
+                        disabled={!apiKey}
+                      >
+                        获取模型列表
+                      </Button>
+                    </div>
+                    {testResult && (
+                      <p className={`text-xs ${testResult.valid ? 'text-green-600' : 'text-red-600'}`}>
+                        {testResult.message}
+                      </p>
+                    )}
+                    {modelList && modelList.length > 0 && (
+                      <div className="max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
+                        {modelList.map(m => (
+                          <button
+                            key={m}
+                            onClick={() => { setModelName(m); setModelList(null); }}
+                            className={`block w-full text-left px-2 py-1 text-xs rounded hover:bg-gray-100 ${
+                              m === modelName ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600'
+                            }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {modelList && modelList.length === 0 && (
+                      <p className="text-xs text-red-500">获取模型列表失败</p>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
