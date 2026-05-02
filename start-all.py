@@ -23,7 +23,7 @@ def main():
     # 检查前端依赖
     if not (frontend_dir / 'node_modules').exists():
         print("\n前端依赖未安装，正在安装...")
-        subprocess.run(['npm', 'install'], cwd=frontend_dir, check=True)
+        subprocess.run(['npm', 'install'], cwd=frontend_dir, shell=True, check=True)
         print("前端依赖安装完成")
 
     print(f"\n后端: http://localhost:8000")
@@ -36,19 +36,33 @@ def main():
     pid_file = backend_dir / 'pids.json'
 
     try:
-        # 启动后端（输出直接显示在当前终端）
-        backend_process = subprocess.Popen(
-            [sys.executable, 'main.py'],
-            cwd=backend_dir,
-        )
-        processes.append(backend_process)
+        # 启动后端
+        print("正在启动后端...")
+        try:
+            backend_process = subprocess.Popen(
+                [sys.executable, 'main.py'],
+                cwd=backend_dir,
+            )
+            processes.append(backend_process)
+            print(f"  后端 PID: {backend_process.pid}")
+        except Exception as e:
+            print(f"  后端启动失败: {e}")
+            sys.exit(1)
 
         # 启动前端
-        frontend_process = subprocess.Popen(
-            ['npm', 'run', 'dev'],
-            cwd=frontend_dir,
-        )
-        processes.append(frontend_process)
+        print("正在启动前端...")
+        try:
+            frontend_process = subprocess.Popen(
+                'npm run dev',
+                cwd=frontend_dir,
+                shell=True,
+            )
+            processes.append(frontend_process)
+            print(f"  前端 PID: {frontend_process.pid}")
+        except Exception as e:
+            print(f"  前端启动失败: {e}")
+            backend_process.terminate()
+            sys.exit(1)
 
         # 写入 PID 文件供后端自动停服使用
         pid_data = {
@@ -59,10 +73,12 @@ def main():
         pid_file.write_text(json.dumps(pid_data))
 
         # 等待后端启动后自动打开浏览器
+        print("等待服务就绪...")
         time.sleep(3)
         webbrowser.open('http://localhost:5173')
+        print("浏览器已打开")
 
-        # 等待任意子进程结束
+        # 监控进程状态
         while True:
             for p in processes:
                 if p.poll() is not None:
@@ -76,6 +92,10 @@ def main():
 
     except KeyboardInterrupt:
         print("\n正在停止服务...")
+    except Exception as e:
+        print(f"\n启动失败: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         for p in processes:
             if p.poll() is None:

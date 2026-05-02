@@ -35,4 +35,4 @@ REM Run start-all.py (handles everything else)
 python start-all.py
 
 deactivate
-pause
+exit

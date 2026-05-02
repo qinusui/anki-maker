@@ -57,7 +57,8 @@ app.include_router(process_router, prefix="/api/process", tags=["process"])
 app.include_router(cards_router, prefix="/api/cards", tags=["cards"])
 
 # ---- 自动关闭机制 ----
-_last_heartbeat = time.time()
+# 初始设为 60 秒后，给浏览器启动和页面加载留足时间
+_last_heartbeat = time.time() + 60
 _shutdown_lock = threading.Lock()
 
 
@@ -85,7 +86,7 @@ def _kill_processes():
 
 
 def _shutdown_watcher():
-    """后台线程：30 秒无心跳则自动关闭所有服务"""
+    """后台线程：5 秒无心跳则自动关闭所有服务"""
     while True:
         time.sleep(5)
         with _shutdown_lock:
