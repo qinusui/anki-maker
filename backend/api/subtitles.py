@@ -246,43 +246,61 @@ async def ai_recommend_progress(task_id: str):
 _transcribe_store: dict = {}
 _transcribe_lock = _threading.Lock()
 
+# 项目根目录（用于子进程设置 sys.path）
+_PROJECT_ROOT = str(Path(__file__).parent.parent.parent)
+
+
+def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, language: str, result_path: str):
+    """在独立进程中运行 Whisper 转录，避免 GIL 争抢阻塞事件循环"""
+    import sys as _sys
+    _sys.path.append(_PROJECT_ROOT)
+
+    import whisper
+    from whisper_transcribe import save_as_srt
+
+    model = whisper.load_model(model_name)
+    result = model.transcribe(
+        video_path,
+        language=language,
+        word_timestamps=True,
+        verbose=True  # 子进程 verbose 不污染主进程日志
+    )
+
+    segments = [{"start": s["start"], "end": s["end"], "text": s["text"].strip()}
+                for s in result.get("segments", [])]
+    save_as_srt(segments, srt_path)
+
+    # 保存转录元信息到临时 JSON，供主进程读取
+    import json as _json
+    with open(result_path, "w", encoding="utf-8") as f:
+        _json.dump({"segment_count": len(segments)}, f)
+
 
 def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
                          model_name: str, language: str, min_duration: float):
-    """后台执行转录，实时更新进度"""
-    sys.path.append(str(Path(__file__).parent.parent.parent))
+    """后台执行转录，Whisper 放入独立进程避免 GIL 阻塞事件循环"""
+    import multiprocessing
 
     def update(status, step, message):
         with _transcribe_lock:
             _transcribe_store[task_id] = {"status": status, "step": step, "total_steps": 4, "message": message}
 
+    result_json_path = str(Path(video_path_str).with_suffix(".result.json"))
+
     try:
-        update("processing", 0, "保存视频文件...")
+        update("processing", 1, "加载 Whisper 模型并转录中...")
 
-        from whisper_transcribe import transcribe_video, save_as_srt
-
-        update("processing", 1, "加载 Whisper 模型...")
-        import whisper
-        model = whisper.load_model(model_name)
-
-        update("processing", 2, "转录中，请耐心等待...")
-        result = model.transcribe(
-            str(video_path_str),
-            language=language,
-            word_timestamps=True,
-            verbose=False
+        # 在独立进程中运行 Whisper，彻底隔离 GIL
+        proc = multiprocessing.Process(
+            target=_whisper_subprocess,
+            args=(str(video_path_str), str(srt_path_str), model_name, language, result_json_path),
+            daemon=True
         )
+        proc.start()
+        proc.join()  # 等待转录完成，但不阻塞主进程的事件循环（在线程中等待）
 
-        segments = []
-        for segment in result.get("segments", []):
-            segments.append({
-                "start": segment["start"],
-                "end": segment["end"],
-                "text": segment["text"].strip()
-            })
-        print(f"  转录完成，共 {len(segments)} 段")
-
-        save_as_srt(segments, str(srt_path_str))
+        if proc.exitcode != 0:
+            raise RuntimeError(f"Whisper 进程异常退出 (code={proc.exitcode})")
 
         update("processing", 3, "解析生成的字幕...")
 
@@ -330,6 +348,8 @@ def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
             Path(video_path_str).unlink(missing_ok=True)
         if Path(srt_path_str).exists():
             Path(srt_path_str).unlink(missing_ok=True)
+        if Path(result_json_path).exists():
+            Path(result_json_path).unlink(missing_ok=True)
 
 
 @router.post("/transcribe")
