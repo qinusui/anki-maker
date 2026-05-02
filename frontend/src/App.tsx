@@ -136,8 +136,14 @@ function App() {
         setProcessingSteps(s => s.map(step => ({ ...step, status: 'completed' as const })));
         setApkgPath(result.apkg_path);
 
-        // 由于后端暂时不返回卡片数据，显示一个占位提示
-        alert(`处理完成！生成了 ${result.cards_count} 张卡片。请点击下载按钮获取 .apkg 文件。`);
+        // 使用后端返回的卡片数据
+        if (result.cards && result.cards.length > 0) {
+          setResult(result.cards);
+          setPreviewIndex(0);
+        } else {
+          // 如果没有返回卡片数据，至少显示数量
+          alert(`处理完成！生成了 ${result.cards_count} 张卡片。请点击下载按钮获取 .apkg 文件。`);
+        }
       } else {
         throw new Error(result.message);
       }

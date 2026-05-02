@@ -73,24 +73,41 @@ async def upload_and_process(
             os.environ["DEEPSEEK_API_KEY"] = api_key
 
         # 调用处理函数
-        apkg_path = process_cards(
+        result = process_cards(
             video_path=str(video_path),
             subtitle_path=str(subtitle_path),
             output_dir=output_dir,
             min_duration=min_duration
         )
 
+        # 从返回结果中获取信息
+        apkg_path = result["apkg_path"]
+        cards_count = result["cards_count"]
+        processed_data = result.get("processed", [])
+
         # 获取生成的文件名
         apkg_filename = Path(apkg_path).name
 
-        # 这里简化处理，返回空卡片列表
-        # 实际可以从 apkg 文件中提取卡片数据
+        # 将 processed 数据转换为 ProcessedCard 格式
+        cards = [
+            ProcessedCard(
+                sentence=item.get("sentence", ""),
+                translation=item.get("translation", ""),
+                notes=item.get("notes", ""),
+                start_sec=item.get("start_sec", 0),
+                end_sec=item.get("end_sec", 0),
+                audio_path=item.get("audio_path"),
+                screenshot_path=item.get("screenshot_path")
+            )
+            for item in processed_data
+        ]
+
         return ProcessResult(
             success=True,
-            message="处理完成",
-            cards_count=0,  # 需要从实际处理结果获取
+            message=f"处理完成，生成了 {cards_count} 张卡片",
+            cards_count=cards_count,
             apkg_path=apkg_filename,
-            cards=[]
+            cards=cards
         )
 
     except Exception as e:
@@ -136,19 +153,38 @@ async def start_processing(
 
     try:
         # 调用处理函数
-        apkg_path = process_cards(
+        result = process_cards(
             video_path=str(video_path),
             subtitle_path=str(subtitle_path),
             output_dir=output_dir,
             min_duration=min_duration
         )
 
+        # 从返回结果中获取信息
+        apkg_path = result["apkg_path"]
+        cards_count = result["cards_count"]
+        processed_data = result.get("processed", [])
+
+        # 将 processed 数据转换为 ProcessedCard 格式
+        cards = [
+            ProcessedCard(
+                sentence=item.get("sentence", ""),
+                translation=item.get("translation", ""),
+                notes=item.get("notes", ""),
+                start_sec=item.get("start_sec", 0),
+                end_sec=item.get("end_sec", 0),
+                audio_path=item.get("audio_path"),
+                screenshot_path=item.get("screenshot_path")
+            )
+            for item in processed_data
+        ]
+
         return ProcessResult(
             success=True,
-            message="处理完成",
-            cards_count=0,
-            apkg_path=str(apkg_path),
-            cards=[]
+            message=f"处理完成，生成了 {cards_count} 张卡片",
+            cards_count=cards_count,
+            apkg_path=apkg_path,
+            cards=cards
         )
 
     except Exception as e:

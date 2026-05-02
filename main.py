@@ -23,7 +23,7 @@ def run(
     whisper_model: str = "base",
     language: str = None,
     force_transcribe: bool = False
-) -> str:
+) -> dict:
     """
     运行完整流程
 
@@ -37,6 +37,9 @@ def run(
         whisper_model: Whisper 模型 (tiny, base, small, medium, large)
         language: 视频语言代码，None 则自动检测
         force_transcribe: 强制使用 Whisper 转录（忽略已有字幕文件）
+
+    Returns:
+        dict: 包含 apkg_path, cards_count, processed 等信息
     """
     video_path = Path(video_path)
     subtitle_path = Path(subtitle_path) if subtitle_path else None
@@ -125,7 +128,11 @@ def run(
     print(f"牌组文件: {apkg_path}")
     print(f"卡片数量: {len(processed)}")
 
-    return apkg_path
+    return {
+        "apkg_path": str(apkg_path),
+        "cards_count": len(processed),
+        "processed": processed
+    }
 
 
 def main():
