@@ -1231,7 +1231,7 @@ function App() {
                     variant="primary"
                     className="w-full mt-4"
                     onClick={handleProcess}
-                    disabled={selectedIndices.size === 0 || isProcessing || !videoFile}
+                    disabled={selectedIndices.size === 0 || isProcessing || !videoFile || isRecommending}
                   >
                     开始处理 ({selectedIndices.size} 条)
                   </Button>
