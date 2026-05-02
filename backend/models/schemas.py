@@ -15,6 +15,17 @@ class SubtitleItem(BaseModel):
     text: str
     duration: float = Field(default=0, description="字幕时长（秒）")
 
+    @classmethod
+    def from_subtitle(cls, sub) -> "SubtitleItem":
+        """从核心模块的 Subtitle dataclass 转换"""
+        return cls(
+            index=sub.index,
+            start_sec=round(sub.start_sec, 3),
+            end_sec=round(sub.end_sec, 3),
+            text=sub.text,
+            duration=round(sub.end_sec - sub.start_sec, 3)
+        )
+
     class Config:
         json_schema_extra = {
             "example": {

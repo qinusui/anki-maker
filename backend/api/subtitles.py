@@ -81,16 +81,7 @@ async def upload_subtitle(
         subtitles = filter_short_subtitles(subtitles, min_duration)
 
         # 转换为响应格式
-        subtitle_items = [
-            SubtitleItem(
-                index=sub.index,
-                start_sec=round(sub.start_sec, 3),
-                end_sec=round(sub.end_sec, 3),
-                text=sub.text,
-                duration=round(sub.end_sec - sub.start_sec, 3)
-            )
-            for sub in subtitles
-        ]
+        subtitle_items = [SubtitleItem.from_subtitle(sub) for sub in subtitles]
 
         return SubtitleListResponse(
             subtitles=subtitle_items,
@@ -210,16 +201,7 @@ async def extract_embedded_subtitles(
         original_count = len(import_subtitles)
         import_subtitles = filter_short_subtitles(import_subtitles, min_duration)
 
-        subtitle_items = [
-            SubtitleItem(
-                index=sub.index,
-                start_sec=round(sub.start_sec, 3),
-                end_sec=round(sub.end_sec, 3),
-                text=sub.text,
-                duration=round(sub.end_sec - sub.start_sec, 3)
-            )
-            for sub in import_subtitles
-        ]
+        subtitle_items = [SubtitleItem.from_subtitle(sub) for sub in import_subtitles]
 
         return {
             "found": True,
@@ -327,16 +309,7 @@ def _run_ocr_extract(task_id: str, video_path_str: str, lang: str,
         original_count = len(subtitles)
         subtitles = filter_short_subtitles(subtitles, min_duration)
 
-        subtitle_items = [
-            SubtitleItem(
-                index=sub.index,
-                start_sec=round(sub.start_sec, 3),
-                end_sec=round(sub.end_sec, 3),
-                text=sub.text,
-                duration=round(sub.end_sec - sub.start_sec, 3)
-            )
-            for sub in subtitles
-        ]
+        subtitle_items = [SubtitleItem.from_subtitle(sub) for sub in subtitles]
 
         with _ocr_lock:
             _ocr_store[task_id] = {
@@ -724,16 +697,7 @@ def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
         original_count = len(subtitles)
         subtitles = filter_short_subtitles(subtitles, min_duration)
 
-        subtitle_items = [
-            SubtitleItem(
-                index=sub.index,
-                start_sec=round(sub.start_sec, 3),
-                end_sec=round(sub.end_sec, 3),
-                text=sub.text,
-                duration=round(sub.end_sec - sub.start_sec, 3)
-            )
-            for sub in subtitles
-        ]
+        subtitle_items = [SubtitleItem.from_subtitle(sub) for sub in subtitles]
 
         with _transcribe_lock:
             _transcribe_store[task_id] = {
