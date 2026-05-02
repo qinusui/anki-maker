@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Film, FileText, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/Card';
@@ -74,6 +74,7 @@ function App() {
   const [recommendations, setRecommendations] = useState<Map<number, AIRecommendation> | null>(null);
   const [isRecommending, setIsRecommending] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const transcribingRef = useRef(false);
   const [recommendBatch, setRecommendBatch] = useState(0);
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
@@ -98,8 +99,9 @@ function App() {
 
   // Whisper 转录视频生成字幕
   const handleTranscribe = async () => {
-    if (!videoFile) return;
+    if (!videoFile || transcribingRef.current) return;
 
+    transcribingRef.current = true;
     setIsTranscribing(true);
     try {
       const response = await subtitleAPI.transcribe(videoFile, minDuration);
@@ -110,6 +112,7 @@ function App() {
       console.error('转录失败:', error);
       alert('转录失败: ' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
+      transcribingRef.current = false;
       setIsTranscribing(false);
     }
   };
