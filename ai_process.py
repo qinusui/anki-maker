@@ -25,18 +25,20 @@ class AIProcessor:
 - translation 和 notes 必填，不可为空
 - 保持原文顺序输出，每条都必须有 index 字段"""
 
-    def __init__(self, api_key: str = None, base_url: str = "https://api.deepseek.com"):
+    def __init__(self, api_key: str = None, base_url: str = None, model_name: str = None):
         """
         初始化 AI 处理器
 
         Args:
-            api_key: DeepSeek API Key，默认从环境变量读取
-            base_url: API 地址
+            api_key: API Key，默认从环境变量读取
+            base_url: API 地址，默认 https://api.deepseek.com
+            model_name: 模型名称，默认 deepseek-chat
         """
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         if not self.api_key:
             raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或在 .env 文件中配置")
-        self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+        self.client = OpenAI(api_key=self.api_key, base_url=base_url or "https://api.deepseek.com")
+        self.model_name = model_name or "deepseek-chat"
 
     def process_batch(self, subtitles: list[dict], batch_size: int = 30, system_prompt: str = None) -> list[dict]:
         """
@@ -60,7 +62,7 @@ class AIProcessor:
 
             try:
                 response = self.client.chat.completions.create(
-                    model="deepseek-chat",
+                    model=self.model_name,
                     messages=[
                         {"role": "system", "content": system_prompt or self.SYSTEM_PROMPT},
                         {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
@@ -96,18 +98,21 @@ class AIProcessor:
         return results
 
 
-def process_subtitles_with_ai(subtitles: list, api_key: str = None) -> list[dict]:
+def process_subtitles_with_ai(subtitles: list, api_key: str = None,
+                              api_base: str = None, model_name: str = None) -> list[dict]:
     """
     批量处理字幕列表
 
     Args:
         subtitles: Subtitle 对象列表
-        api_key: DeepSeek API Key
+        api_key: API Key
+        api_base: API 地址（可选）
+        model_name: 模型名称（可选）
 
     Returns:
         处理后的完整数据列表
     """
-    processor = AIProcessor(api_key)
+    processor = AIProcessor(api_key, api_base, model_name)
 
     # 转换为 dict 列表
     subtitle_dicts = [

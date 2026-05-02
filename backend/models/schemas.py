@@ -81,6 +81,8 @@ class AIRecommendRequest(BaseModel):
     """AI 推荐请求"""
     subtitles: List[SubtitleItem]
     api_key: Optional[str] = None
+    api_base: Optional[str] = None
+    model_name: Optional[str] = None
     custom_prompt: Optional[str] = None
     batch_size: int = 30
 

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { SubtitleListResponse, ProcessResult, ProcessProgress, ProcessedCard, SubtitleItem, AIRecommendResponse } from '../types';
+import type { SubtitleListResponse, ProcessResult, ProcessedCard, SubtitleItem, AIRecommendResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -76,11 +76,14 @@ export const subtitleAPI = {
     subtitles: SubtitleItem[],
     apiKey?: string,
     customPrompt?: string,
-    batchSize?: number
+    batchSize?: number,
+    apiBase?: string,
+    modelName?: string
   ): Promise<{ task_id: string; status: string }> => {
     const response = await api.post<{ task_id: string; status: string }>(
       '/api/subtitles/ai-recommend',
-      { subtitles, api_key: apiKey || undefined, custom_prompt: customPrompt || undefined, batch_size: batchSize ?? 30 }
+      { subtitles, api_key: apiKey || undefined, custom_prompt: customPrompt || undefined,
+        batch_size: batchSize ?? 30, api_base: apiBase || undefined, model_name: modelName || undefined }
     );
     return response.data;
   },
@@ -106,7 +109,9 @@ export const processAPI = {
     subtitleFile: File,
     minDuration: number = 1.0,
     apiKey?: string,
-    preProcessed?: object[]
+    preProcessed?: object[],
+    apiBase?: string,
+    modelName?: string
   ): Promise<{ task_id: string; status: string }> => {
     const formData = new FormData();
     formData.append('video', videoFile);
@@ -114,6 +119,12 @@ export const processAPI = {
     formData.append('min_duration', minDuration.toString());
     if (apiKey) {
       formData.append('api_key', apiKey);
+    }
+    if (apiBase) {
+      formData.append('api_base', apiBase);
+    }
+    if (modelName) {
+      formData.append('model_name', modelName);
     }
     if (preProcessed && preProcessed.length > 0) {
       formData.append('pre_processed', JSON.stringify(preProcessed));

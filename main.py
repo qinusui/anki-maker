@@ -24,7 +24,9 @@ def run(
     language: str = None,
     force_transcribe: bool = False,
     progress_callback=None,
-    pre_processed: list = None
+    pre_processed: list = None,
+    api_base: str = None,
+    model_name: str = None
 ) -> dict:
     """
     运行完整流程
@@ -114,12 +116,12 @@ def run(
             raise ValueError("预处理数据与字幕不匹配")
         progress(2, f"使用 AI 推荐结果，共 {len(processed)} 条")
     else:
-        progress(2, f"DeepSeek AI 注释 {len(subtitles)} 条字幕中...")
+        progress(2, f"AI 注释 {len(subtitles)} 条字幕中...")
         api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
             raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或传入 api_key")
 
-        processed = process_subtitles_with_ai(subtitles, api_key)
+        processed = process_subtitles_with_ai(subtitles, api_key, api_base, model_name)
 
         if not processed:
             raise ValueError("AI 处理后没有保留的字幕")

@@ -62,6 +62,8 @@ async def upload_and_process(
     min_duration: float = Form(1.0),
     output_dir: str = Form("./output"),
     api_key: Optional[str] = Form(None),
+    api_base: Optional[str] = Form(None),
+    model_name: Optional[str] = Form(None),
     pre_processed: Optional[str] = Form(None)
 ):
     """
@@ -126,7 +128,9 @@ async def upload_and_process(
                 output_dir=output_dir,
                 min_duration=min_duration,
                 progress_callback=progress_callback,
-                pre_processed=pre_processed_data
+                pre_processed=pre_processed_data,
+                api_base=api_base,
+                model_name=model_name
             )
 
             apkg_filename = Path(result["apkg_path"]).name

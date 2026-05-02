@@ -119,11 +119,13 @@ _recommend_store: dict = {}
 _recommend_lock = _threading.Lock()
 
 
-def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_prompt: str, batch_size: int = 30):
+def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_prompt: str,
+                      batch_size: int = 30, api_base: str = "https://api.deepseek.com",
+                      model_name: str = "deepseek-chat"):
     """同步执行 AI 推荐（在后台线程中运行）"""
     from openai import OpenAI
 
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+    client = OpenAI(api_key=api_key, base_url=api_base)
     results = []
     batch_size = max(1, min(100, batch_size))
     total_batches = (len(subtitle_dicts) + batch_size - 1) // batch_size
@@ -151,7 +153,7 @@ def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_p
 
         try:
             response = client.chat.completions.create(
-                model="deepseek-chat",
+                model=model_name,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
@@ -217,12 +219,16 @@ async def ai_recommend(request: AIRecommendRequest):
         for s in request.subtitles
     ]
 
+    api_base = request.api_base or "https://api.deepseek.com"
+    model_name = request.model_name or "deepseek-chat"
+
     task_id = str(_uuid.uuid4())
 
     # 在后台线程中执行
     thread = _threading.Thread(
         target=_run_ai_recommend,
-        args=(task_id, subtitle_dicts, api_key, system_prompt, request.batch_size),
+        args=(task_id, subtitle_dicts, api_key, system_prompt, request.batch_size,
+              api_base, model_name),
         daemon=True
     )
     thread.start()

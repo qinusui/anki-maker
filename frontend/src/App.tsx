@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Film, FileText, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { Film, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/Card';
 import { Input } from './components/Input';
@@ -34,12 +34,15 @@ function generateSRTContent(subtitles: SubtitleItem[], selectedIndices: Set<numb
   return content;
 }
 
-const PROCESSING_STEPS = [
-  { id: 'upload', label: '上传文件', status: 'pending' as const },
-  { id: 'parse', label: '解析字幕', status: 'pending' as const },
-  { id: 'ai', label: 'AI 智能注释', status: 'pending' as const },
-  { id: 'media', label: '切割音频与截图', status: 'pending' as const },
-  { id: 'pack', label: '打包 Anki 牌组', status: 'pending' as const },
+type StepStatus = 'pending' | 'processing' | 'completed' | 'error';
+type ProcessingStep = { id: string; label: string; status: StepStatus; error?: string };
+
+const PROCESSING_STEPS: ProcessingStep[] = [
+  { id: 'upload', label: '上传文件', status: 'pending' },
+  { id: 'parse', label: '解析字幕', status: 'pending' },
+  { id: 'ai', label: 'AI 智能注释', status: 'pending' },
+  { id: 'media', label: '切割音频与截图', status: 'pending' },
+  { id: 'pack', label: '打包 Anki 牌组', status: 'pending' },
 ];
 
 const DEFAULT_RECOMMEND_PROMPT = `你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
@@ -50,8 +53,21 @@ const DEFAULT_RECOMMEND_PROMPT = `你是英语学习教材编写专家。对输�
 - 对话内容有意义（非简单寒暄如'okay', 'yeah', 'uh-huh'等）
 - 有文化背景或情境意义`;
 
+// 从 localStorage 读取 AI 配置（持久化）
+function loadAIConfig() {
+  try {
+    const raw = localStorage.getItem('anki_ai_config');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
 function App() {
-  const [apiKey, setApiKey] = useState('');
+  const savedConfig = loadAIConfig();
+  const [apiBase, setApiBase] = useState(savedConfig?.apiBase || 'https://api.deepseek.com');
+  const [modelName, setModelName] = useState(savedConfig?.modelName || 'deepseek-chat');
+  const [apiKey, setApiKey] = useState(savedConfig?.apiKey || '');
+  const [configExpanded, setConfigExpanded] = useState(!savedConfig); // 首次展开
   const [minDuration, setMinDuration] = useState(1.0);
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -77,7 +93,7 @@ function App() {
   const transcribingRef = useRef(false);
   const transcribedVideoName = useRef<string | null>(null);
   const [transcribeStep, setTranscribeStep] = useState(0);
-  const [transcribeTotalSteps, setTranscribeTotalSteps] = useState(4);
+  const [, setTranscribeTotalSteps] = useState(4);
   const [transcribeMessage, setTranscribeMessage] = useState('');
   const [transcribeAnimProgress, setTranscribeAnimProgress] = useState(0); // 动画进度
   const transcribeAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -102,6 +118,11 @@ function App() {
       clearInterval((window as any).__heartbeatInterval);
     };
   }, []);
+
+  // AI 配置变化时自动保存到 localStorage
+  useEffect(() => {
+    localStorage.setItem('anki_ai_config', JSON.stringify({ apiBase, modelName, apiKey }));
+  }, [apiBase, modelName, apiKey]);
 
   // 转录进度动画：分阶段加权 + 转录阶段缓慢渐进
   useEffect(() => {
@@ -246,7 +267,9 @@ function App() {
         subtitles,
         apiKey,
         customPrompt || undefined,
-        recommendBatchSize
+        recommendBatchSize,
+        apiBase || undefined,
+        modelName || undefined
       );
 
       // 2. 轮询进度
@@ -343,7 +366,9 @@ function App() {
         selectedSubtitleFile,
         minDuration,
         apiKey || undefined,
-        preProcessed
+        preProcessed,
+        apiBase || undefined,
+        modelName || undefined
       );
 
       // 2. 轮询进度
@@ -387,7 +412,7 @@ function App() {
             const errMsg = progress.error || '未知错误';
             alert(`处理失败: ${errMsg}`);
             setProcessingSteps(s =>
-              s.map((step, i) =>
+              s.map((step) =>
                 step.status === 'processing'
                   ? { ...step, status: 'error' as const, error: errMsg }
                   : step
@@ -408,7 +433,7 @@ function App() {
       alert(`处理失败: ${errorMessage}`);
 
       setProcessingSteps(s =>
-        s.map((step, i) =>
+        s.map((step) =>
           step.status === 'processing'
             ? { ...step, status: 'error' as const, error: errorMessage }
             : step
@@ -519,38 +544,89 @@ function App() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 左侧：设置和上传 */}
           <div className="lg:col-span-2 space-y-6">
-            {/* API Key 配置 */}
+            {/* AI 配置 */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Settings className="w-5 h-5" />
-                  配置
+                  AI 配置
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Input
-                  type="password"
-                  label="DeepSeek API Key"
-                  placeholder="输入你的 DeepSeek API Key"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      最短字幕时长（秒）
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0.5"
-                      max="5"
-                      value={minDuration}
-                      onChange={(e) => setMinDuration(parseFloat(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
+                {/* 折叠时显示摘要 */}
+                {!configExpanded && (
+                  <div
+                    className="flex items-center justify-between cursor-pointer p-2 rounded hover:bg-gray-50"
+                    onClick={() => setConfigExpanded(true)}
+                  >
+                    <span className="text-sm text-gray-600 truncate max-w-[80%]">
+                      {apiBase.replace(/^https?:\/\//, '')} / {modelName}
+                      {apiKey ? ` / ***${apiKey.slice(-4)}` : ' / 未设置 Key'}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
                   </div>
-                </div>
+                )}
+                {/* 展开时显示输入框 */}
+                {configExpanded && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        API 地址
+                      </label>
+                      <input
+                        type="text"
+                        value={apiBase}
+                        onChange={(e) => setApiBase(e.target.value)}
+                        placeholder="https://api.deepseek.com"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          模型名称
+                        </label>
+                        <input
+                          type="text"
+                          value={modelName}
+                          onChange={(e) => setModelName(e.target.value)}
+                          placeholder="deepseek-chat"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          最短字幕时长（秒）
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="5"
+                          value={minDuration}
+                          onChange={(e) => setMinDuration(parseFloat(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+                    <Input
+                      type="password"
+                      label="API Key"
+                      placeholder="输入你的 API Key"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setConfigExpanded(false)}
+                    >
+                      <ChevronUp className="w-4 h-4 mr-1" />
+                      收起配置
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
 
