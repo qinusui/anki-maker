@@ -79,6 +79,8 @@ function App() {
   const [transcribeStep, setTranscribeStep] = useState(0);
   const [transcribeTotalSteps, setTranscribeTotalSteps] = useState(4);
   const [transcribeMessage, setTranscribeMessage] = useState('');
+  const [transcribeAnimProgress, setTranscribeAnimProgress] = useState(0); // 动画进度
+  const transcribeAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recommendBatch, setRecommendBatch] = useState(0);
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
@@ -100,6 +102,38 @@ function App() {
       clearInterval((window as any).__heartbeatInterval);
     };
   }, []);
+
+  // 转录进度动画：分阶段加权 + 转录阶段缓慢渐进
+  useEffect(() => {
+    // 加权基准：保存0%→加载模型10%→转录中20%→解析90%→完成100%
+    const stepBase = [0, 10, 20, 90, 100];
+
+    if (!isTranscribing) {
+      setTranscribeAnimProgress(0);
+      if (transcribeAnimRef.current) clearInterval(transcribeAnimRef.current);
+      return;
+    }
+
+    const base = stepBase[transcribeStep] || 0;
+    setTranscribeAnimProgress(base);
+
+    if (transcribeStep === 2) {
+      // 转录中：每秒微增 0.3%，从 20% 慢慢爬到接近 90%
+      transcribeAnimRef.current = setInterval(() => {
+        setTranscribeAnimProgress(prev => {
+          if (prev < 20) return 20;
+          if (prev >= 88) return 88;
+          return Math.min(88, prev + 0.3);
+        });
+      }, 1000);
+    } else {
+      if (transcribeAnimRef.current) clearInterval(transcribeAnimRef.current);
+    }
+
+    return () => {
+      if (transcribeAnimRef.current) clearInterval(transcribeAnimRef.current);
+    };
+  }, [isTranscribing, transcribeStep]);
 
   // Whisper 转录视频生成字幕
   const handleTranscribe = async () => {
@@ -566,7 +600,7 @@ function App() {
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div
                             className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${(transcribeStep / transcribeTotalSteps) * 100}%` }}
+                            style={{ width: `${transcribeAnimProgress}%` }}
                           />
                         </div>
                         <p className="text-xs text-gray-500">{transcribeMessage}</p>
