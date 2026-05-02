@@ -4,28 +4,28 @@ echo Anki Card Generator - Backend Server
 echo ========================================
 echo.
 
-REM 检查 Python 是否安装
+REM Check Python
 where python >nul 2>nul
 if errorlevel 1 (
-    echo 错误: 未检测到 Python
-    echo 请先安装 Python: https://www.python.org/
+    echo ERROR: Python not found
+    echo Please install Python: https://www.python.org/
     pause
     exit /b 1
 )
 
-echo [1/3] 检查 Python 环境...
+echo [1/3] Checking Python environment...
 python --version
 if errorlevel 1 (
-    echo 错误: Python 版本检查失败
+    echo ERROR: Python version check failed
     pause
     exit /b 1
 )
 echo.
 
-echo [2/3] 安装后端依赖...
+echo [2/3] Installing backend dependencies...
 cd backend
 if not exist requirements.txt (
-    echo 错误: 找不到 requirements.txt 文件
+    echo ERROR: requirements.txt not found
     cd ..
     pause
     exit /b 1
@@ -33,32 +33,32 @@ if not exist requirements.txt (
 
 pip install -r requirements.txt
 if errorlevel 1 (
-    echo 错误: 依赖安装失败
+    echo ERROR: Failed to install dependencies
     cd ..
     pause
     exit /b 1
 )
-echo 依赖安装完成
+echo Dependencies installed
 echo.
 
-echo [3/3] 启动 FastAPI 服务器...
+echo [3/3] Starting FastAPI server...
 echo.
 echo ========================================
-echo 后端将启动在:
+echo Backend will start at:
 echo   API: http://localhost:8000
-echo   API 文档: http://localhost:8000/docs
+echo   API Docs: http://localhost:8000/docs
 echo ========================================
 echo.
-echo 按 Ctrl+C 停止服务器
+echo Press Ctrl+C to stop the server
 echo.
 
 python main.py
 
-REM 如果后端退出，显示错误信息
+REM If backend exits with error
 if errorlevel 1 (
     echo.
     echo ========================================
-    echo 后端服务异常退出
+    echo Backend server exited with error
     echo ========================================
     pause
 )
