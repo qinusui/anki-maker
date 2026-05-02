@@ -80,6 +80,30 @@ DEEPSEEK_API_KEY=your-api-key-here
 
 ### Web 界面（推荐）
 
+**一键启动（最简单）：**
+
+Windows:
+```bash
+.\start.bat
+```
+
+或使用 Python 脚本：
+```bash
+python start-all.py
+```
+
+Linux/Mac:
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+启动后会自动打开浏览器，访问 `http://localhost:5173`
+
+---
+
+**手动启动：**
+
 **1. 启动后端服务：**
 
 Windows:
