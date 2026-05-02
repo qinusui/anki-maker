@@ -45,13 +45,35 @@ const PROCESSING_STEPS: ProcessingStep[] = [
   { id: 'pack', label: '打包 Anki 牌组', status: 'pending' },
 ];
 
-const DEFAULT_RECOMMEND_PROMPT = `你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
+const PRESETS = {
+  grammar: {
+    label: '语法句型',
+    prompt: `你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
 
 判断标准：
 - 有明确的语法知识点（如时态、从句、虚拟语气等）
 - 有实用表达或固定搭配
 - 对话内容有意义（非简单寒暄如'okay', 'yeah', 'uh-huh'等）
-- 有文化背景或情境意义`;
+- 有文化背景或情境意义`,
+  },
+  vocab: {
+    label: '背单词',
+    prompt: `你是英语词汇教学专家。对输入的字幕列表，每条判断是否值得作为单词学习材料：
+
+判断标准：
+- 句子中包含高频核心词汇或学术词汇（如 TOEFL/IELTS/GRE 词汇）
+- 包含值得掌握的动词短语、介词搭配或习语
+- 包含一词多义、熟词僻义的实际用例
+- 单词在语境中有助于理解和记忆
+- 对话内容有意义（非简单寒暄如'okay', 'yeah', 'uh-huh'等）
+
+对于 include=true 的句子，notes 字段需标注：重点单词-词性-释义，如遇词组则整体标注`,
+  },
+} as const;
+
+type PresetKey = keyof typeof PRESETS;
+
+const DEFAULT_RECOMMEND_PROMPT = PRESETS.grammar.prompt;
 
 // 从 localStorage 读取 AI 配置（持久化）
 function loadAIConfig() {
@@ -99,7 +121,8 @@ function App() {
   const transcribeAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recommendBatch, setRecommendBatch] = useState(0);
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
-  const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
+  const [customPrompt, setCustomPrompt] = useState<string>(DEFAULT_RECOMMEND_PROMPT);
+  const [promptPreset, setPromptPreset] = useState<PresetKey>('grammar');
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [recommendBatchSize, setRecommendBatchSize] = useState(30);
 
@@ -756,7 +779,31 @@ function App() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            自定义提示词（描述 AI 如何筛选有价值的学习材料）
+                            提示词预设
+                          </label>
+                          <div className="flex gap-2 mb-3">
+                            {(Object.keys(PRESETS) as PresetKey[]).map((key) => (
+                              <button
+                                key={key}
+                                onClick={() => {
+                                  setPromptPreset(key);
+                                  setCustomPrompt(PRESETS[key].prompt);
+                                }}
+                                disabled={isRecommending}
+                                className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
+                                  promptPreset === key
+                                    ? 'bg-primary-500 text-white border-primary-500'
+                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {PRESETS[key].label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            提示词内容（可自由修改）
                           </label>
                           <textarea
                             value={customPrompt}
