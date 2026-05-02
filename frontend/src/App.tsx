@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Film, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { Film, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/Card';
 import { Input } from './components/Input';
@@ -590,6 +590,14 @@ function App() {
               >
                 <Info className="w-4 h-4 mr-2" />
                 使用说明
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.open('https://github.com/qinusui/anki-maker/issues', '_blank')}
+              >
+                <MessageSquare className="w-4 h-4 mr-2" />
+                反馈
               </Button>
             </div>
           </div>
