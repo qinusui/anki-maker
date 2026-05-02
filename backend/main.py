@@ -41,10 +41,9 @@ static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-# 挂载输出目录供下载 - 使用项目根目录的 output
-import os
-PROJECT_ROOT = Path(__file__).parent.parent
-output_dir = PROJECT_ROOT / "output"
+# 挂载输出目录供下载 - 与 process.py 中的 ./output 保持一致
+# 因为服务从 backend/ 目录启动，CWD 就是 backend/
+output_dir = Path(__file__).parent / "output"
 output_dir.mkdir(exist_ok=True)
 
 # 注册路由

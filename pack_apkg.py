@@ -121,6 +121,7 @@ def save_deck_with_media(
     import shutil
 
     temp_dir = Path(tempfile.mkdtemp())
+    print(f"创建临时目录: {temp_dir}")
 
     # 复制媒体文件到临时目录
     copied_files = []
@@ -128,23 +129,34 @@ def save_deck_with_media(
     def copy_to_media(filename: str, source_dir: str = None) -> str:
         if not filename:
             return None
-        source = Path(source_dir or "") / filename if source_dir else Path(filename)
+        if source_dir:
+            source = Path(source_dir) / filename
+        else:
+            source = Path(filename)
+
         if source.exists():
             dest = temp_dir / Path(filename).name
             shutil.copy2(source, dest)
             copied_files.append(str(dest))
+            print(f"复制文件: {source} -> {dest}")
             return str(Path(filename).name)
-        return None
+        else:
+            print(f"文件不存在: {source}")
+            return None
 
     # 处理音频文件
     if audio_files:
+        print(f"音频文件: {audio_files}")
         for af in audio_files:
             copy_to_media(os.path.basename(af), audio_dir)
 
     # 处理截图文件
     if screenshot_files:
+        print(f"截图文件: {screenshot_files}")
         for sf in screenshot_files:
             copy_to_media(os.path.basename(sf), screenshot_dir)
+
+    print(f"复制的媒体文件: {copied_files}")
 
     # 写入包文件
     package = genanki.Package(deck)
@@ -152,10 +164,13 @@ def save_deck_with_media(
 
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
+
+    print(f"保存到: {output}")
     package.write_to_file(str(output))
 
     # 清理临时目录
     shutil.rmtree(temp_dir, ignore_errors=True)
+    print(f"清理临时目录: {temp_dir}")
 
 
 def create_apkg(
@@ -182,24 +197,40 @@ def create_apkg(
     deck_name = Path(video_name).stem
 
     # 构建 CardData 列表
-    card_data_list = [
-        CardData(
+    card_data_list = []
+    for i, c in enumerate(cards):
+        print(f"卡片 {i}: audio_path={c.get('audio_path', 'N/A')}, screenshot_path={c.get('screenshot_path', 'N/A')}")
+        card_data_list.append(CardData(
             index=c.get("index", i),
             sentence=c.get("text", ""),
             translation=c.get("translation", ""),
             notes=c.get("notes", ""),
             audio_path=c.get("audio_path", ""),
             screenshot_path=c.get("screenshot_path", "")
-        )
-        for i, c in enumerate(cards)
-    ]
+        ))
 
     # 创建牌组
     deck = create_deck(deck_name, card_data_list)
 
     # 收集媒体文件
-    audio_files = [c.audio_path for c in card_data_list if c.audio_path]
-    screenshot_files = [c.screenshot_path for c in card_data_list if c.screenshot_path]
+    audio_files = []
+    screenshot_files = []
+
+    for c in card_data_list:
+        if c.audio_path and Path(c.audio_path).exists():
+            audio_files.append(c.audio_path)
+            print(f"音频文件存在: {c.audio_path}")
+        else:
+            print(f"音频文件不存在: {c.audio_path}")
+
+        if c.screenshot_path and Path(c.screenshot_path).exists():
+            screenshot_files.append(c.screenshot_path)
+            print(f"截图文件存在: {c.screenshot_path}")
+        else:
+            print(f"截图文件不存在: {c.screenshot_path}")
+
+    print(f"有效音频文件总数: {len(audio_files)}")
+    print(f"有效截图文件总数: {len(screenshot_files)}")
 
     # 保存
     output_path = Path(output_dir) / f"{deck_name}.apkg"
@@ -212,8 +243,13 @@ def create_apkg(
         screenshot_dir=screenshot_dir
     )
 
-    print(f"牌组已生成: {output_path}")
-    return str(output_path)
+    # 验证文件是否创建成功
+    if output_path.exists():
+        print(f"牌组已生成: {output_path}")
+        print(f"文件大小: {output_path.stat().st_size} bytes")
+        return str(output_path)
+    else:
+        raise Exception(f"牌组生成失败: {output_path} 不存在")
 
 
 if __name__ == '__main__':

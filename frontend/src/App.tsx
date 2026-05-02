@@ -172,6 +172,10 @@ function App() {
     try {
       // 创建一个临时链接下载
       const response = await fetch(`/download/${encodeURIComponent(apkgPath)}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `下载失败 (HTTP ${response.status})`);
+      }
       const blob = await response.blob();
 
       const url = window.URL.createObjectURL(blob);
