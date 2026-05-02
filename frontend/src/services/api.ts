@@ -40,11 +40,12 @@ export const subtitleAPI = {
   startRecommend: async (
     subtitles: SubtitleItem[],
     apiKey?: string,
-    customPrompt?: string
+    customPrompt?: string,
+    batchSize?: number
   ): Promise<{ task_id: string; status: string }> => {
     const response = await api.post<{ task_id: string; status: string }>(
       '/api/subtitles/ai-recommend',
-      { subtitles, api_key: apiKey || undefined, custom_prompt: customPrompt || undefined }
+      { subtitles, api_key: apiKey || undefined, custom_prompt: customPrompt || undefined, batch_size: batchSize ?? 30 }
     );
     return response.data;
   },

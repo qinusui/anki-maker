@@ -119,13 +119,13 @@ _recommend_store: dict = {}
 _recommend_lock = _threading.Lock()
 
 
-def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_prompt: str):
+def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_prompt: str, batch_size: int = 30):
     """同步执行 AI 推荐（在后台线程中运行）"""
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
     results = []
-    batch_size = 30
+    batch_size = max(1, min(100, batch_size))
     total_batches = (len(subtitle_dicts) + batch_size - 1) // batch_size
 
     with _recommend_lock:
@@ -222,7 +222,7 @@ async def ai_recommend(request: AIRecommendRequest):
     # 在后台线程中执行
     thread = _threading.Thread(
         target=_run_ai_recommend,
-        args=(task_id, subtitle_dicts, api_key, system_prompt),
+        args=(task_id, subtitle_dicts, api_key, system_prompt, request.batch_size),
         daemon=True
     )
     thread.start()

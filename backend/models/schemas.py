@@ -82,6 +82,7 @@ class AIRecommendRequest(BaseModel):
     subtitles: List[SubtitleItem]
     api_key: Optional[str] = None
     custom_prompt: Optional[str] = None
+    batch_size: int = 30
 
 
 class AIRecommendItem(BaseModel):

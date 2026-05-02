@@ -77,6 +77,7 @@ function App() {
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
   const [showPromptEditor, setShowPromptEditor] = useState(false);
+  const [recommendBatchSize, setRecommendBatchSize] = useState(30);
 
   // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
   useEffect(() => {
@@ -147,7 +148,8 @@ function App() {
       const { task_id } = await subtitleAPI.startRecommend(
         subtitles,
         apiKey,
-        customPrompt || undefined
+        customPrompt || undefined,
+        recommendBatchSize
       );
 
       // 2. 轮询进度
@@ -533,18 +535,37 @@ function App() {
                     </div>
 
                     {showPromptEditor && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          自定义提示词（描述 AI 如何筛选有价值的学习材料）
-                        </label>
-                        <textarea
-                          value={customPrompt}
-                          onChange={(e) => setCustomPrompt(e.target.value)}
-                          rows={6}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
-                          placeholder="输入自定义提示词..."
-                          disabled={isRecommending}
-                        />
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-32">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              每批数量
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={recommendBatchSize}
+                              onChange={(e) => setRecommendBatchSize(parseInt(e.target.value) || 30)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                              disabled={isRecommending}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400 mt-5">1-100，越大越快但可能超时</span>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            自定义提示词（描述 AI 如何筛选有价值的学习材料）
+                          </label>
+                          <textarea
+                            value={customPrompt}
+                            onChange={(e) => setCustomPrompt(e.target.value)}
+                            rows={6}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                            placeholder="输入自定义提示词..."
+                            disabled={isRecommending}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
