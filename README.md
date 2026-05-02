@@ -22,11 +22,41 @@ anki_maker/
 ├── media_cut.py      # ffmpeg 媒体切割
 ├── pack_apkg.py      # Anki 打包
 ├── requirements.txt   # 依赖
+├── backend/          # FastAPI 后端（Web 界面）
+│   ├── main.py      # 后端入口
+│   ├── api/         # API 路由
+│   └── models/      # 数据模型
+├── frontend/         # React 前端（Web 界面）
+│   └── src/
+│       ├── components/  # UI 组件
+│       ├── services/    # API 调用
+│       └── App.tsx      # 主应用
 ├── input/            # 放置视频和字幕文件
 └── output/           # 生成的牌组输出
 ```
 
 ## 安装依赖
+
+### Web 界面
+
+**后端依赖：**
+```bash
+pip install -r requirements.txt
+cd backend
+pip install -r requirements.txt
+```
+
+**前端依赖：**
+```bash
+cd frontend
+npm install
+```
+
+**系统依赖：**
+- ffmpeg（添加到 PATH）
+- Node.js 18+（用于前端开发）
+
+### 命令行
 
 ```bash
 pip install openai genanki pysrt openai-whisper python-dotenv
@@ -47,6 +77,42 @@ DEEPSEEK_API_KEY=your-api-key-here
 ```
 
 ## 使用方法
+
+### Web 界面（推荐）
+
+**1. 启动后端服务：**
+
+Windows:
+```bash
+.\start-backend.bat
+```
+
+或手动启动：
+```bash
+cd backend
+pip install -r requirements.txt
+python main.py
+```
+
+后端将在 `http://localhost:8000` 启动，API 文档：`http://localhost:8000/docs`
+
+**2. 启动前端界面：**
+
+需要先安装 [Node.js](https://nodejs.org/)，然后：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+前端将在 `http://localhost:5173` 启动
+
+**3. 使用 Web 界面：**
+- 配置 DeepSeek API Key
+- 上传视频和字幕文件
+- 预览并选择要处理的字幕
+- 生成并下载 Anki 牌组
 
 ### 命令行
 

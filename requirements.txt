@@ -1,5 +1,5 @@
 openai>=1.0.0
-genanki>=0.14.0
+genanki>=0.13.0
 pysrt>=1.1.2
 python-dotenv>=1.0.0
 openai-whisper>=20231117
