@@ -114,7 +114,7 @@ def run(
             raise ValueError("预处理数据与字幕不匹配")
         progress(2, f"使用 AI 推荐结果，共 {len(processed)} 条")
     else:
-        progress(2, f"DeepSeek AI 处理 {len(subtitles)} 条字幕中...")
+        progress(2, f"DeepSeek AI 注释 {len(subtitles)} 条字幕中...")
         api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
             raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或传入 api_key")

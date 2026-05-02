@@ -37,7 +37,7 @@ function generateSRTContent(subtitles: SubtitleItem[], selectedIndices: Set<numb
 const PROCESSING_STEPS = [
   { id: 'upload', label: '上传文件', status: 'pending' as const },
   { id: 'parse', label: '解析字幕', status: 'pending' as const },
-  { id: 'ai', label: 'AI 智能筛选', status: 'pending' as const },
+  { id: 'ai', label: 'AI 智能注释', status: 'pending' as const },
   { id: 'media', label: '切割音频与截图', status: 'pending' as const },
   { id: 'pack', label: '打包 Anki 牌组', status: 'pending' as const },
 ];

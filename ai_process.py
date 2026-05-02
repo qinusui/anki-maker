@@ -14,22 +14,15 @@ load_dotenv()
 class AIProcessor:
     """AI 处理器"""
 
-    SYSTEM_PROMPT = """你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
-
-判断标准：
-- 有明确的语法知识点（如时态、从句、虚拟语气等）
-- 有实用表达或固定搭配
-- 对话内容有意义（非简单寒暄如'okay', 'yeah', 'uh-huh'等）
-- 有文化背景或情境意义
+    SYSTEM_PROMPT = """你是英语学习教材编写专家。为输入的字幕列表的每一条提供中文翻译和知识点注释。
 
 返回格式（JSON对象）：
-{"items": [{"index": 数字, "include": true/false, "reason": "简短原因", "translation": "中文翻译", "notes": "重点词汇-释义"}, ...]}
+{"items": [{"index": 数字, "include": true, "translation": "中文翻译", "notes": "重点词汇-释义"}, ...]}
 
 注意：
 - 必须返回一个 JSON 对象，items 是数组
-- include=true 表示值得加入学习
-- include=false 时 reason 说明原因（如：纯简单应答、无知识价值）
-- 只对 include=true 的句子提供 translation 和 notes
+- 每条字幕都必须保留，include 始终为 true
+- translation 和 notes 必填，不可为空
 - 保持原文顺序输出，每条都必须有 index 字段"""
 
     def __init__(self, api_key: str = None, base_url: str = "https://api.deepseek.com"):
@@ -130,25 +123,21 @@ def process_subtitles_with_ai(subtitles: list, api_key: str = None) -> list[dict
     print(f"开始 AI 处理，共 {len(subtitle_dicts)} 条字幕...")
     results = processor.process_batch(subtitle_dicts)
 
-    # 合并原数据和 AI 结果
+    # 合并原数据和 AI 结果（保留所有句子，仅添加注释）
     processed = []
     for i, sub in enumerate(subtitle_dicts):
-        if i < len(results) and isinstance(results[i], dict):
-            result = results[i]
-            include = result.get("include", False)
-            if include:
-                processed.append({
-                    "index": sub["index"],
-                    "start_sec": sub["start_sec"],
-                    "end_sec": sub["end_sec"],
-                    "text": sub["text"],
-                    "translation": result.get("translation", ""),
-                    "notes": result.get("notes", ""),
-                    "reason": result.get("reason", "")
-                })
-        continue
+        result = results[i] if i < len(results) and isinstance(results[i], dict) else {}
+        processed.append({
+            "index": sub["index"],
+            "start_sec": sub["start_sec"],
+            "end_sec": sub["end_sec"],
+            "text": sub["text"],
+            "translation": result.get("translation", ""),
+            "notes": result.get("notes", ""),
+            "reason": result.get("reason", "")
+        })
 
-    print(f"AI 处理完成，{len(processed)}/{len(subtitle_dicts)} 条有学习价值")
+    print(f"AI 注释完成，共 {len(processed)} 条")
 
     return processed
 
