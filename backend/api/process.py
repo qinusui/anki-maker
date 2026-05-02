@@ -61,7 +61,8 @@ async def upload_and_process(
     subtitle: UploadFile = File(...),
     min_duration: float = Form(1.0),
     output_dir: str = Form("./output"),
-    api_key: Optional[str] = Form(None)
+    api_key: Optional[str] = Form(None),
+    pre_processed: Optional[str] = Form(None)
 ):
     """
     上传视频和字幕文件，后台异步处理
@@ -82,6 +83,14 @@ async def upload_and_process(
 
     if api_key:
         os.environ["DEEPSEEK_API_KEY"] = api_key
+
+    # 解析预处理数据
+    pre_processed_data = None
+    if pre_processed:
+        try:
+            pre_processed_data = json.loads(pre_processed)
+        except json.JSONDecodeError:
+            pass
 
     # 初始化任务进度
     with task_store_lock:
@@ -116,7 +125,8 @@ async def upload_and_process(
                 subtitle_path=str(subtitle_path),
                 output_dir=output_dir,
                 min_duration=min_duration,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                pre_processed=pre_processed_data
             )
 
             apkg_filename = Path(result["apkg_path"]).name

@@ -201,13 +201,31 @@ function App() {
     const selectedSubtitleBlob = new Blob([srtContent], { type: 'text/plain' });
     const selectedSubtitleFile = new File([selectedSubtitleBlob], 'selected_subtitles.srt', { type: 'text/plain' });
 
+    // 如果有 AI 推荐结果，构建预处理数据（跳过后端 AI 步骤）
+    let preProcessed: object[] | undefined;
+    if (recommendations) {
+      preProcessed = subtitles
+        .filter(s => selectedIndices.has(s.index))
+        .map(s => {
+          const rec = recommendations.get(s.index);
+          return {
+            index: s.index,
+            text: s.text,
+            translation: rec?.translation || '',
+            notes: rec?.notes || '',
+            reason: rec?.reason || ''
+          };
+        });
+    }
+
     try {
       // 1. 上传并启动后台处理
       const { task_id } = await processAPI.uploadAndProcess(
         videoFile,
         selectedSubtitleFile,
         minDuration,
-        apiKey || undefined
+        apiKey || undefined,
+        preProcessed
       );
 
       // 2. 轮询进度

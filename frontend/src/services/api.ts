@@ -60,7 +60,8 @@ export const processAPI = {
     videoFile: File,
     subtitleFile: File,
     minDuration: number = 1.0,
-    apiKey?: string
+    apiKey?: string,
+    preProcessed?: object[]
   ): Promise<{ task_id: string; status: string }> => {
     const formData = new FormData();
     formData.append('video', videoFile);
@@ -68,6 +69,9 @@ export const processAPI = {
     formData.append('min_duration', minDuration.toString());
     if (apiKey) {
       formData.append('api_key', apiKey);
+    }
+    if (preProcessed && preProcessed.length > 0) {
+      formData.append('pre_processed', JSON.stringify(preProcessed));
     }
 
     const response = await api.post<{ task_id: string; status: string }>(

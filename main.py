@@ -23,7 +23,8 @@ def run(
     whisper_model: str = "base",
     language: str = None,
     force_transcribe: bool = False,
-    progress_callback=None
+    progress_callback=None,
+    pre_processed: list = None
 ) -> dict:
     """
     运行完整流程
@@ -39,6 +40,7 @@ def run(
         language: 视频语言代码，None 则自动检测
         force_transcribe: 强制使用 Whisper 转录（忽略已有字幕文件）
         progress_callback: 进度回调 callback(step, total_steps, message, details)
+        pre_processed: 前端已通过 AI 推荐预处理的注释数据，提供后跳过 AI 步骤
 
     Returns:
         dict: 包含 apkg_path, cards_count, processed 等信息
@@ -91,18 +93,38 @@ def run(
     if not subtitles:
         raise ValueError("没有符合条件的字幕")
 
-    # Step 2: AI 处理
-    progress(2, f"DeepSeek AI 处理 {len(subtitles)} 条字幕中...")
-    api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
-        raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或传入 api_key")
+    # Step 2: AI 处理（如有预处理数据则跳过）
+    if pre_processed:
+        # 使用前端 AI 推荐的结果，按 index 匹配
+        lookup = {item["index"]: item for item in pre_processed if "index" in item}
+        processed = []
+        for sub in subtitles:
+            match = lookup.get(sub.index)
+            if match:
+                processed.append({
+                    "index": sub.index,
+                    "start_sec": sub.start_sec,
+                    "end_sec": sub.end_sec,
+                    "text": sub.text,
+                    "translation": match.get("translation", ""),
+                    "notes": match.get("notes", ""),
+                    "reason": match.get("reason", "")
+                })
+        if not processed:
+            raise ValueError("预处理数据与字幕不匹配")
+        progress(2, f"使用 AI 推荐结果，共 {len(processed)} 条")
+    else:
+        progress(2, f"DeepSeek AI 处理 {len(subtitles)} 条字幕中...")
+        api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或传入 api_key")
 
-    processed = process_subtitles_with_ai(subtitles, api_key)
+        processed = process_subtitles_with_ai(subtitles, api_key)
 
-    if not processed:
-        raise ValueError("AI 处理后没有保留的字幕")
-    progress(2, f"AI 处理完成，保留 {len(processed)} 条有价值内容",
-             {"retained": len(processed)})
+        if not processed:
+            raise ValueError("AI 处理后没有保留的字幕")
+        progress(2, f"AI 处理完成，保留 {len(processed)} 条有价值内容",
+                 {"retained": len(processed)})
 
     # Step 3: 媒体处理
     progress(3, f"切割音频和截图中 ({len(processed)} 个片段)...")
