@@ -9,7 +9,7 @@ import shutil
 import json
 import os
 import asyncio
-from typing import List
+from typing import List, Optional
 
 from models.schemas import SubtitleItem, SubtitleListResponse, AIRecommendRequest, AIRecommendItem, AIRecommendResponse
 
@@ -240,6 +240,84 @@ async def ai_recommend_progress(task_id: str):
         raise HTTPException(status_code=404, detail="任务不存在")
 
     return task
+
+
+@router.post("/transcribe", response_model=SubtitleListResponse)
+async def transcribe_video_endpoint(
+    video: UploadFile = File(...),
+    min_duration: float = 1.0,
+    language: Optional[str] = None,
+    model_name: str = "base"
+):
+    """
+    使用 Whisper 将视频转录为字幕
+
+    Args:
+        video: 视频文件
+        min_duration: 最短字幕时长过滤
+        language: 语言代码（如 en, zh），None 则自动检测
+        model_name: Whisper 模型 (tiny, base, small, medium, large)
+    """
+    if not video.filename:
+        raise HTTPException(status_code=400, detail="未提供视频文件")
+
+    # 导入转录模块
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    from whisper_transcribe import transcribe_video, save_as_srt
+
+    temp_dir = Path(__file__).parent.parent.parent / "temp"
+    temp_dir.mkdir(exist_ok=True)
+
+    video_path = temp_dir / f"transcribe_{video.filename}"
+    srt_path = temp_dir / f"transcribe_{video.filename}.srt"
+
+    try:
+        # 保存视频文件
+        with open(video_path, "wb") as f:
+            shutil.copyfileobj(video.file, f)
+
+        # Whisper 转录
+        segments = transcribe_video(
+            str(video_path),
+            model_name=model_name,
+            language=language
+        )
+        print(f"  转录完成，共 {len(segments)} 段")
+
+        # 保存为 SRT
+        save_as_srt(segments, str(srt_path))
+
+        # 解析 SRT 并过滤
+        subtitles = parse_srt(str(srt_path))
+        original_count = len(subtitles)
+        subtitles = filter_short_subtitles(subtitles, min_duration)
+
+        subtitle_items = [
+            SubtitleItem(
+                index=sub.index,
+                start_sec=round(sub.start_sec, 3),
+                end_sec=round(sub.end_sec, 3),
+                text=sub.text,
+                duration=round(sub.end_sec - sub.start_sec, 3)
+            )
+            for sub in subtitles
+        ]
+
+        return SubtitleListResponse(
+            subtitles=subtitle_items,
+            total=original_count,
+            filtered=len(subtitle_items)
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"转录失败: {str(e)}")
+
+    finally:
+        # 清理临时文件
+        if video_path.exists():
+            video_path.unlink()
+        if srt_path.exists():
+            srt_path.unlink()
 
 
 @router.get("/example", response_model=SubtitleListResponse)

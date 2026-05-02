@@ -30,6 +30,28 @@ export const subtitleAPI = {
     return response.data;
   },
 
+  // Whisper 转录视频生成字幕
+  transcribe: async (
+    video: File,
+    minDuration: number = 1.0,
+    language?: string,
+    modelName?: string
+  ): Promise<SubtitleListResponse> => {
+    const formData = new FormData();
+    formData.append('video', video);
+    const params = new URLSearchParams();
+    params.append('min_duration', minDuration.toString());
+    if (language) params.append('language', language);
+    if (modelName) params.append('model_name', modelName);
+
+    const response = await api.post<SubtitleListResponse>(
+      `/api/subtitles/transcribe?${params.toString()}`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 }
+    );
+    return response.data;
+  },
+
   // 获取示例字幕
   getExample: async (): Promise<SubtitleListResponse> => {
     const response = await api.get<SubtitleListResponse>('/api/subtitles/example');

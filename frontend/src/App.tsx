@@ -73,6 +73,7 @@ function App() {
   // AI 推荐相关
   const [recommendations, setRecommendations] = useState<Map<number, AIRecommendation> | null>(null);
   const [isRecommending, setIsRecommending] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [recommendBatch, setRecommendBatch] = useState(0);
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
@@ -94,6 +95,24 @@ function App() {
       clearInterval((window as any).__heartbeatInterval);
     };
   }, []);
+
+  // Whisper 转录视频生成字幕
+  const handleTranscribe = async () => {
+    if (!videoFile) return;
+
+    setIsTranscribing(true);
+    try {
+      const response = await subtitleAPI.transcribe(videoFile, minDuration);
+      setSubtitles(response.subtitles);
+      setSelectedIndices(new Set(response.subtitles.map(s => s.index)));
+      setRecommendations(null);
+    } catch (error) {
+      console.error('转录失败:', error);
+      alert('转录失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
 
   // 加载字幕
   const handleLoadSubtitles = async () => {
@@ -475,14 +494,25 @@ function App() {
                   label="字幕文件"
                   icon="text"
                 />
-                <Button
-                  variant="primary"
-                  className="w-full"
-                  onClick={handleLoadSubtitles}
-                  disabled={!subtitleFile || isProcessing}
-                >
-                  加载字幕
-                </Button>
+                {subtitleFile ? (
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    onClick={handleLoadSubtitles}
+                    disabled={!subtitleFile || isProcessing}
+                  >
+                    加载字幕
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    className="w-full"
+                    onClick={handleTranscribe}
+                    disabled={!videoFile || isProcessing || isTranscribing}
+                  >
+                    {isTranscribing ? 'Whisper 转录中...' : '生成字幕'}
+                  </Button>
+                )}
               </CardContent>
             </Card>
 
