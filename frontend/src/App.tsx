@@ -96,6 +96,8 @@ function App() {
   const [minDuration, setMinDuration] = useState(1.0);
   const [paddingStartMs, setPaddingStartMs] = useState(200);
   const [paddingEndMs, setPaddingEndMs] = useState(200);
+  const [whisperModel, setWhisperModel] = useState('base');
+  const [showModelPicker, setShowModelPicker] = useState(false);
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
@@ -210,14 +212,26 @@ function App() {
     }
   };
 
-  // Whisper 转录视频生成字幕
-  const handleTranscribe = async () => {
+  const WHISPER_MODELS = [
+    { key: 'tiny',  label: 'tiny',   size: '~75 MB',  speed: '最快，精度最低' },
+    { key: 'base',  label: 'base',   size: '~145 MB', speed: '较快，日常够用' },
+    { key: 'small', label: 'small',  size: '~488 MB', speed: '中等，精度较好' },
+    { key: 'medium',label: 'medium', size: '~1.5 GB', speed: '较慢，精度高' },
+    { key: 'large', label: 'large',  size: '~2.9 GB', speed: '最慢，精度最高' },
+  ];
+
+  // Whisper 转录视频生成字幕 — 先打开模型选择
+  const handleTranscribe = () => {
+    if (!videoFile || transcribingRef.current) return;
+    if (transcribedVideoName.current === videoFile.name) return;
+    setShowModelPicker(true);
+  };
+
+  // 确认模型后开始转录
+  const startTranscribe = async () => {
     if (!videoFile || transcribingRef.current) return;
 
-    if (transcribedVideoName.current === videoFile.name) {
-      return;
-    }
-
+    setShowModelPicker(false);
     transcribingRef.current = true;
     setIsTranscribing(true);
     setTranscribeStep(0);
@@ -225,7 +239,7 @@ function App() {
     setTranscribeMessage('准备转录...');
 
     try {
-      const { task_id } = await subtitleAPI.startTranscribe(videoFile, minDuration);
+      const { task_id } = await subtitleAPI.startTranscribe(videoFile, minDuration, undefined, whisperModel);
 
       const pollInterval = setInterval(async () => {
         try {
@@ -862,6 +876,45 @@ function App() {
                     >
                       {isTranscribing ? '转录中...' : '生成字幕'}
                     </Button>
+                    {showModelPicker && !isTranscribing && (
+                      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+                        <p className="text-sm font-medium text-gray-700">选择 Whisper 模型（首次使用会自动下载）</p>
+                        <div className="space-y-2">
+                          {WHISPER_MODELS.map(m => (
+                            <label
+                              key={m.key}
+                              className={`flex items-center gap-3 p-2 rounded cursor-pointer border transition-colors ${
+                                whisperModel === m.key
+                                  ? 'border-primary-500 bg-primary-50'
+                                  : 'border-gray-200 hover:bg-gray-100'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="whisperModel"
+                                value={m.key}
+                                checked={whisperModel === m.key}
+                                onChange={() => setWhisperModel(m.key)}
+                                className="w-4 h-4 text-primary-600"
+                              />
+                              <div className="flex-1">
+                                <span className="font-medium text-sm">{m.label}</span>
+                                <span className="text-xs text-gray-500 ml-2">{m.size}</span>
+                              </div>
+                              <span className="text-xs text-gray-400">{m.speed}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="primary" size="sm" onClick={startTranscribe}>
+                            开始转录
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setShowModelPicker(false)}>
+                            取消
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {isTranscribing && (
                       <div className="space-y-1">
                         <div className="w-full bg-gray-200 rounded-full h-2">
