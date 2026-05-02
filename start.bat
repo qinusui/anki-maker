@@ -80,7 +80,7 @@ timeout /t 2 /nobreak >nul
 
 REM Start frontend
 cd frontend
-start "Anki Frontend" cmd /k "npm run dev"
+start "Anki Frontend" cmd /k "npm run dev -- --open"
 cd ..
 
 echo.

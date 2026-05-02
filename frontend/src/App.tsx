@@ -45,7 +45,6 @@ const PROCESSING_STEPS = [
 function App() {
   const [apiKey, setApiKey] = useState('');
   const [minDuration, setMinDuration] = useState(1.0);
-  const [outputDir, setOutputDir] = useState('./output');
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
@@ -128,7 +127,6 @@ function App() {
         videoFile,
         selectedSubtitleFile,
         minDuration,
-        outputDir,
         apiKey || undefined
       );
 
@@ -290,12 +288,6 @@ function App() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
-                  <Input
-                    label="输出目录"
-                    placeholder="./output"
-                    value={outputDir}
-                    onChange={(e) => setOutputDir(e.target.value)}
-                  />
                 </div>
               </CardContent>
             </Card>

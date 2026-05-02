@@ -25,14 +25,15 @@ anki_maker/
 ├── backend/          # FastAPI 后端（Web 界面）
 │   ├── main.py      # 后端入口
 │   ├── api/         # API 路由
-│   └── models/      # 数据模型
+│   ├── models/      # 数据模型
+│   └── output/      # 生成的牌组输出
 ├── frontend/         # React 前端（Web 界面）
 │   └── src/
 │       ├── components/  # UI 组件
 │       ├── services/    # API 调用
 │       └── App.tsx      # 主应用
 ├── input/            # 放置视频和字幕文件
-└── output/           # 生成的牌组输出
+└── output/           # 命令行模式生成的牌组输出
 ```
 
 ## 安装依赖

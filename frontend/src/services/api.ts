@@ -44,14 +44,12 @@ export const processAPI = {
     videoFile: File,
     subtitleFile: File,
     minDuration: number = 1.0,
-    outputDir: string = './output',
     apiKey?: string
   ): Promise<ProcessResult> => {
     const formData = new FormData();
     formData.append('video', videoFile);
     formData.append('subtitle', subtitleFile);
     formData.append('min_duration', minDuration.toString());
-    formData.append('output_dir', outputDir);
     if (apiKey) {
       formData.append('api_key', apiKey);
     }
@@ -70,7 +68,6 @@ export const processAPI = {
     videoPath: string,
     subtitlePath: string,
     minDuration: number = 1.0,
-    outputDir: string = './output',
     apiKey?: string
   ): Promise<ProcessResult> => {
     const response = await api.post<ProcessResult>('/api/process/start', null, {
@@ -78,7 +75,6 @@ export const processAPI = {
         video_file_path: videoPath,
         subtitle_file_path: subtitlePath,
         min_duration: minDuration,
-        output_dir: outputDir,
         api_key: apiKey,
       },
     });
