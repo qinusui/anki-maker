@@ -6,9 +6,10 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from pathlib import Path
 import tempfile
 import shutil
+import json
 from typing import List
 
-from models.schemas import SubtitleItem, SubtitleListResponse
+from models.schemas import SubtitleItem, SubtitleListResponse, AIRecommendRequest, AIRecommendItem, AIRecommendResponse
 
 # 导入现有的字幕解析模块
 import sys
@@ -79,6 +80,97 @@ async def upload_subtitle(
         # 清理临时文件
         if temp_path.exists():
             temp_path.unlink()
+
+
+DEFAULT_RECOMMEND_PROMPT = """你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
+
+判断标准：
+- 有明确的语法知识点（如时态、从句、虚拟语气等）
+- 有实用表达或固定搭配
+- 对话内容有意义（非简单寒暄如'okay', 'yeah', 'uh-huh'等）
+- 有文化背景或情境意义
+
+返回格式（JSON数组）：
+[{"include": true/false, "reason": "简短原因", "translation": "中文翻译", "notes": "重点词汇-释义"}, ...]
+
+注意：
+- include=true 表示值得加入学习
+- include=false 时 reason 说明原因（如：纯简单应答、无知识价值）
+- 只对 include=true 的句子提供 translation 和 notes
+- 保持原文顺序输出"""
+
+
+@router.post("/ai-recommend", response_model=AIRecommendResponse)
+async def ai_recommend(request: AIRecommendRequest):
+    """
+    AI 分析字幕，推荐值得学习的句子
+
+    Args:
+        request: 包含字幕列表、API Key 和可选的自定义提示词
+    """
+    from openai import OpenAI
+    import os
+
+    api_key = request.api_key or os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="需要提供 API Key")
+
+    system_prompt = request.custom_prompt or DEFAULT_RECOMMEND_PROMPT
+
+    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+
+    subtitle_dicts = [
+        {"index": s.index, "start_sec": s.start_sec, "end_sec": s.end_sec, "text": s.text}
+        for s in request.subtitles
+    ]
+
+    results = []
+    batch_size = 30
+    total_batches = (len(subtitle_dicts) + batch_size - 1) // batch_size
+
+    for i in range(0, len(subtitle_dicts), batch_size):
+        batch = subtitle_dicts[i:i + batch_size]
+        batch_num = i // batch_size + 1
+        print(f"  AI 推荐：处理第 {batch_num}/{total_batches} 批 ({len(batch)} 条)...")
+
+        try:
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+            )
+
+            content = response.choices[0].message.content
+            parsed = json.loads(content)
+
+            if isinstance(parsed, dict):
+                for v in parsed.values():
+                    if isinstance(v, list):
+                        results.extend(v)
+                        break
+            elif isinstance(parsed, list):
+                results.extend(parsed)
+
+        except Exception as e:
+            print(f"    批次处理失败: {e}")
+            for item in batch:
+                results.append({"index": item["index"], "include": False, "reason": f"处理失败: {e}"})
+
+    recommendations = []
+    for item in results:
+        recommendations.append(AIRecommendItem(
+            index=item.get("index", 0),
+            include=item.get("include", False),
+            reason=item.get("reason", ""),
+            translation=item.get("translation") if item.get("include") else None,
+            notes=item.get("notes") if item.get("include") else None
+        ))
+
+    return AIRecommendResponse(recommendations=recommendations)
 
 
 @router.get("/example", response_model=SubtitleListResponse)

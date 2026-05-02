@@ -77,6 +77,27 @@ class ApiKeyConfig(BaseModel):
     api_key: str
 
 
+class AIRecommendRequest(BaseModel):
+    """AI 推荐请求"""
+    subtitles: List[SubtitleItem]
+    api_key: Optional[str] = None
+    custom_prompt: Optional[str] = None
+
+
+class AIRecommendItem(BaseModel):
+    """单条推荐结果"""
+    index: int
+    include: bool
+    reason: str
+    translation: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class AIRecommendResponse(BaseModel):
+    """AI 推荐响应"""
+    recommendations: List[AIRecommendItem]
+
+
 class CardPreviewRequest(BaseModel):
     """卡片预览请求"""
     cards: List[ProcessedCard]

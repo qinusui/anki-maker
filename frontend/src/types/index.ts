@@ -32,6 +32,18 @@ export interface ProcessedCard {
   screenshot_path?: string;
 }
 
+export interface AIRecommendation {
+  index: number;
+  include: boolean;
+  reason: string;
+  translation?: string;
+  notes?: string;
+}
+
+export interface AIRecommendResponse {
+  recommendations: AIRecommendation[];
+}
+
 export interface ProcessProgress {
   step: string;
   message: string;

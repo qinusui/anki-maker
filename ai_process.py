@@ -44,13 +44,14 @@ class AIProcessor:
             raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或在 .env 文件中配置")
         self.client = OpenAI(api_key=self.api_key, base_url=base_url)
 
-    def process_batch(self, subtitles: list[dict], batch_size: int = 30) -> list[dict]:
+    def process_batch(self, subtitles: list[dict], batch_size: int = 30, system_prompt: str = None) -> list[dict]:
         """
         批量处理字幕
 
         Args:
             subtitles: 字幕列表，每项包含 index, start_sec, end_sec, text
             batch_size: 每批处理数量
+            system_prompt: 自定义系统提示词，默认使用 SYSTEM_PROMPT
 
         Returns:
             处理结果列表
@@ -67,7 +68,7 @@ class AIProcessor:
                 response = self.client.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
-                        {"role": "system", "content": self.SYSTEM_PROMPT},
+                        {"role": "system", "content": system_prompt or self.SYSTEM_PROMPT},
                         {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
                     ],
                     response_format={"type": "json_object"},

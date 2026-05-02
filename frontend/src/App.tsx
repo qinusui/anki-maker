@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Film, FileText, Download, Settings, Info } from 'lucide-react';
+import { Film, FileText, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/Card';
 import { Input } from './components/Input';
@@ -8,7 +8,7 @@ import { FileUpload } from './components/FileUpload';
 import { SubtitleTable } from './components/SubtitleTable';
 import { ProcessingStatus } from './components/ProcessingStatus';
 import { CardPreview } from './components/CardPreview';
-import { SubtitleItem, ProcessedCard } from './types';
+import { SubtitleItem, ProcessedCard, AIRecommendation } from './types';
 import { subtitleAPI, processAPI } from './services/api';
 
 // 格式化时间为 SRT 格式
@@ -42,6 +42,23 @@ const PROCESSING_STEPS = [
   { id: 'pack', label: '打包 Anki 牌组', status: 'pending' as const },
 ];
 
+const DEFAULT_RECOMMEND_PROMPT = `你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
+
+判断标准：
+- 有明确的语法知识点（如时态、从句、虚拟语气等）
+- 有实用表达或固定搭配
+- 对话内容有意义（非简单寒暄如'okay', 'yeah', 'uh-huh'等）
+- 有文化背景或情境意义
+
+返回格式（JSON数组）：
+[{"include": true/false, "reason": "简短原因", "translation": "中文翻译", "notes": "重点词汇-释义"}, ...]
+
+注意：
+- include=true 表示值得加入学习
+- include=false 时 reason 说明原因（如：纯简单应答、无知识价值）
+- 只对 include=true 的句子提供 translation 和 notes
+- 保持原文顺序输出`;
+
 function App() {
   const [apiKey, setApiKey] = useState('');
   const [minDuration, setMinDuration] = useState(1.0);
@@ -61,6 +78,12 @@ function App() {
 
   const [previewIndex, setPreviewIndex] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
+
+  // AI 推荐相关
+  const [recommendations, setRecommendations] = useState<Map<number, AIRecommendation> | null>(null);
+  const [isRecommending, setIsRecommending] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
 
   // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
   useEffect(() => {
@@ -108,6 +131,53 @@ function App() {
         )
       );
     }
+  };
+
+  // AI 推荐字幕
+  const handleAIRecommend = async () => {
+    if (!apiKey) {
+      alert('请先在配置中填写 DeepSeek API Key');
+      return;
+    }
+    if (subtitles.length === 0) {
+      alert('请先加载字幕');
+      return;
+    }
+
+    setIsRecommending(true);
+    setRecommendations(null);
+
+    try {
+      const response = await subtitleAPI.recommend(
+        subtitles,
+        apiKey,
+        customPrompt || undefined
+      );
+
+      const map = new Map<number, AIRecommendation>();
+      response.recommendations.forEach(r => map.set(r.index, r));
+      setRecommendations(map);
+
+      // 自动选中推荐的句子
+      const recommendedIndices = response.recommendations
+        .filter(r => r.include)
+        .map(r => r.index);
+      setSelectedIndices(new Set(recommendedIndices));
+    } catch (error) {
+      console.error('AI 推荐失败:', error);
+      alert('AI 推荐失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      setIsRecommending(false);
+    }
+  };
+
+  // 仅选推荐
+  const selectRecommended = () => {
+    if (!recommendations) return;
+    const recommendedIndices = Array.from(recommendations.values())
+      .filter(r => r.include)
+      .map(r => r.index);
+    setSelectedIndices(new Set(recommendedIndices));
   };
 
   // 处理选中的字幕
@@ -390,12 +460,66 @@ function App() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
+                  {/* AI 推荐区域 */}
+                  <div className="mb-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleAIRecommend}
+                        disabled={isRecommending || isProcessing}
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        {isRecommending ? 'AI 分析中...' : 'AI 推荐'}
+                      </Button>
+                      {recommendations && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={selectRecommended}
+                        >
+                          仅选推荐
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowPromptEditor(!showPromptEditor)}
+                      >
+                        {showPromptEditor ? (
+                          <ChevronUp className="w-4 h-4 mr-1" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 mr-1" />
+                        )}
+                        提示词
+                      </Button>
+                    </div>
+
+                    {showPromptEditor && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          自定义提示词（描述 AI 如何筛选有价值的学习材料）
+                        </label>
+                        <textarea
+                          value={customPrompt}
+                          onChange={(e) => setCustomPrompt(e.target.value)}
+                          rows={6}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                          placeholder="输入自定义提示词..."
+                          disabled={isRecommending}
+                        />
+                      </div>
+                    )}
+                  </div>
+
                   <SubtitleTable
                     subtitles={subtitles}
                     selectedIndices={selectedIndices}
                     onToggleSelection={toggleSelection}
                     onSelectAll={toggleSelectAll}
                     isAllSelected={selectedIndices.size === subtitles.length}
+                    recommendations={recommendations}
+                    isRecommending={isRecommending}
                   />
                   <Button
                     variant="primary"

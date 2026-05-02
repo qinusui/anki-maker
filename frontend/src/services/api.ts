@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { SubtitleListResponse, ProcessResult, ProcessProgress, ProcessedCard } from '../types';
+import type { SubtitleListResponse, ProcessResult, ProcessProgress, ProcessedCard, SubtitleItem, AIRecommendResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -33,6 +33,20 @@ export const subtitleAPI = {
   // 获取示例字幕
   getExample: async (): Promise<SubtitleListResponse> => {
     const response = await api.get<SubtitleListResponse>('/api/subtitles/example');
+    return response.data;
+  },
+
+  // AI 推荐
+  recommend: async (
+    subtitles: SubtitleItem[],
+    apiKey?: string,
+    customPrompt?: string
+  ): Promise<AIRecommendResponse> => {
+    const response = await api.post<AIRecommendResponse>('/api/subtitles/ai-recommend', {
+      subtitles,
+      api_key: apiKey || undefined,
+      custom_prompt: customPrompt || undefined,
+    });
     return response.data;
   },
 };
