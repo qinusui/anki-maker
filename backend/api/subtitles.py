@@ -242,6 +242,27 @@ async def ai_recommend_progress(task_id: str):
     return task
 
 
+def _run_transcribe(video_path: str, srt_path: str, model_name: str, language: str, min_duration: float):
+    """同步执行转录（在线程池中运行）"""
+    sys.path.append(str(Path(__file__).parent.parent.parent))
+    from whisper_transcribe import transcribe_video, save_as_srt
+
+    segments = transcribe_video(
+        str(video_path),
+        model_name=model_name,
+        language=language
+    )
+    print(f"  转录完成，共 {len(segments)} 段")
+
+    save_as_srt(segments, str(srt_path))
+
+    subtitles = parse_srt(str(srt_path))
+    original_count = len(subtitles)
+    subtitles = filter_short_subtitles(subtitles, min_duration)
+
+    return original_count, subtitles
+
+
 @router.post("/transcribe", response_model=SubtitleListResponse)
 async def transcribe_video_endpoint(
     video: UploadFile = File(...),
@@ -261,10 +282,6 @@ async def transcribe_video_endpoint(
     if not video.filename:
         raise HTTPException(status_code=400, detail="未提供视频文件")
 
-    # 导入转录模块
-    sys.path.append(str(Path(__file__).parent.parent.parent))
-    from whisper_transcribe import transcribe_video, save_as_srt
-
     temp_dir = Path(__file__).parent.parent.parent / "temp"
     temp_dir.mkdir(exist_ok=True)
 
@@ -272,25 +289,20 @@ async def transcribe_video_endpoint(
     srt_path = temp_dir / f"transcribe_{video.filename}.srt"
 
     try:
-        # 保存视频文件
         with open(video_path, "wb") as f:
             shutil.copyfileobj(video.file, f)
 
-        # Whisper 转录
-        segments = transcribe_video(
+        # 在线程池中执行转录，避免阻塞事件循环
+        loop = asyncio.get_event_loop()
+        original_count, subtitles = await loop.run_in_executor(
+            None,
+            _run_transcribe,
             str(video_path),
-            model_name=model_name,
-            language=language
+            str(srt_path),
+            model_name,
+            language,
+            min_duration
         )
-        print(f"  转录完成，共 {len(segments)} 段")
-
-        # 保存为 SRT
-        save_as_srt(segments, str(srt_path))
-
-        # 解析 SRT 并过滤
-        subtitles = parse_srt(str(srt_path))
-        original_count = len(subtitles)
-        subtitles = filter_short_subtitles(subtitles, min_duration)
 
         subtitle_items = [
             SubtitleItem(
@@ -313,7 +325,6 @@ async def transcribe_video_endpoint(
         raise HTTPException(status_code=500, detail=f"转录失败: {str(e)}")
 
     finally:
-        # 清理临时文件
         if video_path.exists():
             video_path.unlink()
         if srt_path.exists():
