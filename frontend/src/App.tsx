@@ -821,93 +821,206 @@ function App() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 左侧：设置和上传 */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* AI 配置 */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="w-5 h-5" />
-                  AI 配置
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* 折叠时显示摘要 */}
-                {!configExpanded && (
-                  <div
-                    className="flex items-center justify-between cursor-pointer p-2 rounded hover:bg-gray-50"
-                    onClick={() => setConfigExpanded(true)}
-                  >
-                    <span className="text-sm text-gray-600 truncate max-w-[80%]">
-                      {apiBase.replace(/^https?:\/\//, '')} / {modelName}
-                      {apiKey ? ` / ***${apiKey.slice(-4)}` : ' / 未设置 Key'}
-                    </span>
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  </div>
-                )}
-                {/* 展开时显示输入框 */}
-                {configExpanded && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        API 地址
-                      </label>
-                      <input
-                        type="text"
-                        value={apiBase}
-                        onChange={(e) => setApiBase(e.target.value)}
-                        placeholder="https://api.deepseek.com"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                      />
+        <div className="space-y-8">
+          {/* Step 1 · 准备素材 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">1</span>
+                准备素材
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* 左侧：文件上传 */}
+                <div className="lg:col-span-2 space-y-4">
+                  <FileUpload
+                    accept=".mp4,.mkv,.avi,.mov,.webm"
+                    onFileSelect={(f) => { setVideoFile(f); transcribedVideoName.current = null; setExtractedSource(''); setIsOcrExtracting(false); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
+                    selectedFile={videoFile}
+                    onClear={() => { setVideoFile(null); transcribedVideoName.current = null; setExtractedSource(''); setIsOcrExtracting(false); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
+                    label="视频文件"
+                    icon="video"
+                  />
+                  <FileUpload
+                    accept=".srt"
+                    onFileSelect={setSubtitleFile}
+                    selectedFile={subtitleFile}
+                    onClear={() => setSubtitleFile(null)}
+                    label="字幕文件"
+                    icon="text"
+                  />
+                  {subtitleFile ? (
+                    <Button
+                      variant="primary"
+                      className="w-full"
+                      onClick={handleLoadSubtitles}
+                      disabled={!subtitleFile || isProcessing}
+                    >
+                      加载字幕
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      {/* 已提取内嵌字幕 */}
+                      {extractedSource && (
+                        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded border border-green-200">
+                          <span className="flex-1">{extractedSource}</span>
+                          <button
+                            className="text-xs text-gray-500 underline hover:text-gray-700 shrink-0"
+                            onClick={() => { setExtractedSource(''); setIsOcrExtracting(false); setShowModelPicker(true); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
+                          >
+                            改用 Whisper 转录
+                          </button>
+                        </div>
+                      )}
+                      {/* 未提取时显示生成按钮或进度 */}
+                      {!extractedSource && (
+                        <>
+                          {!isOcrExtracting && (
+                            <Button
+                              variant="primary"
+                              className="w-full"
+                              onClick={handleTranscribe}
+                              disabled={!videoFile || isProcessing || isTranscribing || checkingEmbedded || isOcrExtracting}
+                            >
+                              {checkingEmbedded ? '检测字幕中...' : isTranscribing ? '转录中...' : '生成字幕'}
+                            </Button>
+                          )}
+                          {/* OCR 进度条 */}
+                          {isOcrExtracting && (
+                            <div className="space-y-1">
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${ocrAnimProgress}%` }}
+                                />
+                              </div>
+                              <p className="text-xs text-gray-500">{ocrMessage}</p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {showModelPicker && !isTranscribing && !isOcrExtracting && (
+                        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+                          <p className="text-sm font-medium text-gray-700">选择 Whisper 模型（首次使用会自动下载）</p>
+                          <div className="space-y-2">
+                            {WHISPER_MODELS.map(m => (
+                              <label
+                                key={m.key}
+                                className={`flex items-center gap-3 p-2 rounded cursor-pointer border transition-colors ${
+                                  whisperModel === m.key
+                                    ? 'border-primary-500 bg-primary-50'
+                                    : 'border-gray-200 hover:bg-gray-100'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="whisperModel"
+                                  value={m.key}
+                                  checked={whisperModel === m.key}
+                                  onChange={() => setWhisperModel(m.key)}
+                                  className="w-4 h-4 text-primary-600"
+                                />
+                                <div className="flex-1">
+                                  <span className="font-medium text-sm">{m.label}</span>
+                                  <span className="text-xs text-gray-500 ml-2">{m.size}</span>
+                                </div>
+                                <span className="text-xs text-gray-400">{m.speed}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="primary" size="sm" onClick={startTranscribe}>
+                              开始转录
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setShowModelPicker(false)}>
+                              取消
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {isTranscribing && (
+                        <div className="space-y-1">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${transcribeAnimProgress}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500">{transcribeMessage}</p>
+                        </div>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                  )}
+                </div>
+
+                {/* 右侧：AI 配置 */}
+                <div className="space-y-4">
+                  <div className="text-sm font-medium text-gray-700">AI 配置</div>
+                  {/* 折叠时显示摘要 */}
+                  {!configExpanded && (
+                    <div
+                      className="flex items-center justify-between cursor-pointer p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      onClick={() => setConfigExpanded(true)}
+                    >
+                      <span className="text-sm text-gray-600 truncate">
+                        {apiBase.replace(/^https?:\/\//, '')} / {modelName}
+                        {apiKey ? ` / ***${apiKey.slice(-4)}` : ' / 未设置 Key'}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                    </div>
+                  )}
+                  {/* 展开时显示完整配置 */}
+                  {configExpanded && (
+                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          模型名称
-                        </label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">API 地址</label>
+                        <input
+                          type="text"
+                          value={apiBase}
+                          onChange={(e) => setApiBase(e.target.value)}
+                          placeholder="https://api.deepseek.com"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">模型名称</label>
                         <input
                           type="text"
                           value={modelName}
                           onChange={(e) => setModelName(e.target.value)}
                           placeholder="deepseek-chat"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          最短字幕时长（秒）
-                        </label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0.5"
-                          max="5"
-                          value={minDuration}
-                          onChange={(e) => setMinDuration(parseFloat(e.target.value))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          开头提前 (ms)
-                        </label>
-                        <input
-                          type="number"
-                          step="100"
-                          min="100"
-                          max="1000"
-                          value={paddingStartMs}
-                          onChange={(e) => setPaddingStartMs(parseInt(e.target.value) || 200)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">最短时长(s)</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0.5"
+                            max="5"
+                            value={minDuration}
+                            onChange={(e) => setMinDuration(parseFloat(e.target.value))}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">开头提前(ms)</label>
+                          <input
+                            type="number"
+                            step="100"
+                            min="100"
+                            max="1000"
+                            value={paddingStartMs}
+                            onChange={(e) => setPaddingStartMs(parseInt(e.target.value) || 200)}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                          />
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          结尾延后 (ms)
-                        </label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">结尾延后(ms)</label>
                         <input
                           type="number"
                           step="100"
@@ -915,339 +1028,218 @@ function App() {
                           max="1000"
                           value={paddingEndMs}
                           onChange={(e) => setPaddingEndMs(parseInt(e.target.value) || 200)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                         />
                       </div>
-                    </div>
-                    <Input
-                      type="password"
-                      label="API Key"
-                      placeholder="输入你的 API Key"
-                      value={apiKey}
-                      onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleTestConnection}
-                        disabled={isTesting || !apiKey}
-                      >
-                        {isTesting ? '测试中...' : '测试连接'}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleListModels}
-                        disabled={!apiKey}
-                      >
-                        获取模型列表
-                      </Button>
-                    </div>
-                    {testResult && (
-                      <p className={`text-xs ${testResult.valid ? 'text-green-600' : 'text-red-600'}`}>
-                        {testResult.message}
-                      </p>
-                    )}
-                    {modelList && modelList.length > 0 && (
-                      <div className="max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
-                        {modelList.map(m => (
-                          <button
-                            key={m}
-                            onClick={() => { setModelName(m); setModelList(null); }}
-                            className={`block w-full text-left px-2 py-1 text-xs rounded hover:bg-gray-100 ${
-                              m === modelName ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600'
-                            }`}
-                          >
-                            {m}
-                          </button>
-                        ))}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
+                        <input
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
+                          placeholder="输入你的 API Key"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                        />
                       </div>
-                    )}
-                    {modelList && modelList.length === 0 && (
-                      <p className="text-xs text-red-500">获取模型列表失败，并不影响使用</p>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => setConfigExpanded(false)}
-                    >
-                      <ChevronUp className="w-4 h-4 mr-1" />
-                      收起配置
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* 文件上传 */}
-            <Card>
-              <CardHeader>
-                <CardTitle>上传文件</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <FileUpload
-                  accept=".mp4,.mkv,.avi,.mov,.webm"
-                  onFileSelect={(f) => { setVideoFile(f); transcribedVideoName.current = null; setExtractedSource(''); setIsOcrExtracting(false); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
-                  selectedFile={videoFile}
-                  onClear={() => { setVideoFile(null); transcribedVideoName.current = null; setExtractedSource(''); setIsOcrExtracting(false); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
-                  label="视频文件"
-                  icon="video"
-                />
-                <FileUpload
-                  accept=".srt"
-                  onFileSelect={setSubtitleFile}
-                  selectedFile={subtitleFile}
-                  onClear={() => setSubtitleFile(null)}
-                  label="字幕文件"
-                  icon="text"
-                />
-                {subtitleFile ? (
-                  <Button
-                    variant="primary"
-                    className="w-full"
-                    onClick={handleLoadSubtitles}
-                    disabled={!subtitleFile || isProcessing}
-                  >
-                    加载字幕
-                  </Button>
-                ) : (
-                  <div className="space-y-2">
-                    {/* 已提取内嵌字幕 */}
-                    {extractedSource && (
-                      <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded border border-green-200">
-                        <span className="flex-1">{extractedSource}</span>
-                        <button
-                          className="text-xs text-gray-500 underline hover:text-gray-700 shrink-0"
-                          onClick={() => { setExtractedSource(''); setIsOcrExtracting(false); setShowModelPicker(true); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleTestConnection}
+                          disabled={isTesting || !apiKey}
                         >
-                          改用 Whisper 转录
-                        </button>
+                          {isTesting ? '测试中...' : '测试连接'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleListModels}
+                          disabled={!apiKey}
+                        >
+                          模型列表
+                        </Button>
                       </div>
-                    )}
-                    {/* 未提取时显示生成按钮或进度 */}
-                    {!extractedSource && (
-                      <>
-                        {!isOcrExtracting && (
-                          <Button
-                            variant="primary"
-                            className="w-full"
-                            onClick={handleTranscribe}
-                            disabled={!videoFile || isProcessing || isTranscribing || checkingEmbedded || isOcrExtracting}
-                          >
-                            {checkingEmbedded ? '检测字幕中...' : isTranscribing ? '转录中...' : '生成字幕'}
-                          </Button>
-                        )}
-                        {/* OCR 进度条 */}
-                        {isOcrExtracting && (
-                          <div className="space-y-1">
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div
-                                className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${ocrAnimProgress}%` }}
-                              />
-                            </div>
-                            <p className="text-xs text-gray-500">{ocrMessage}</p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {showModelPicker && !isTranscribing && !isOcrExtracting && (
-                      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
-                        <p className="text-sm font-medium text-gray-700">选择 Whisper 模型（首次使用会自动下载）</p>
-                        <div className="space-y-2">
-                          {WHISPER_MODELS.map(m => (
-                            <label
-                              key={m.key}
-                              className={`flex items-center gap-3 p-2 rounded cursor-pointer border transition-colors ${
-                                whisperModel === m.key
-                                  ? 'border-primary-500 bg-primary-50'
-                                  : 'border-gray-200 hover:bg-gray-100'
+                      {testResult && (
+                        <p className={`text-xs ${testResult.valid ? 'text-green-600' : 'text-red-600'}`}>
+                          {testResult.message}
+                        </p>
+                      )}
+                      {modelList && modelList.length > 0 && (
+                        <div className="max-h-24 overflow-y-auto border border-gray-200 rounded p-1">
+                          {modelList.map(m => (
+                            <button
+                              key={m}
+                              onClick={() => { setModelName(m); setModelList(null); }}
+                              className={`block w-full text-left px-2 py-1 text-xs rounded hover:bg-gray-100 ${
+                                m === modelName ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600'
                               }`}
                             >
-                              <input
-                                type="radio"
-                                name="whisperModel"
-                                value={m.key}
-                                checked={whisperModel === m.key}
-                                onChange={() => setWhisperModel(m.key)}
-                                className="w-4 h-4 text-primary-600"
-                              />
-                              <div className="flex-1">
-                                <span className="font-medium text-sm">{m.label}</span>
-                                <span className="text-xs text-gray-500 ml-2">{m.size}</span>
-                              </div>
-                              <span className="text-xs text-gray-400">{m.speed}</span>
-                            </label>
+                              {m}
+                            </button>
                           ))}
                         </div>
-                        <div className="flex gap-2">
-                          <Button variant="primary" size="sm" onClick={startTranscribe}>
-                            开始转录
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setShowModelPicker(false)}>
-                            取消
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {isTranscribing && (
-                      <div className="space-y-1">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${transcribeAnimProgress}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-gray-500">{transcribeMessage}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* 字幕表格 */}
-            {subtitles.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>
-                    字幕预览 ({selectedIndices.size} / {subtitles.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {/* AI 推荐区域 */}
-                  <div className="mb-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleAIRecommend}
-                        disabled={isRecommending || isProcessing}
-                      >
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        {isRecommending
-                          ? recommendTotalBatches > 0
-                            ? `分析中 ${recommendBatch}/${recommendTotalBatches}`
-                            : 'AI 分析中...'
-                          : 'AI 推荐'}
-                      </Button>
-                      {recommendations && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={selectRecommended}
-                        >
-                          仅选推荐
-                        </Button>
+                      )}
+                      {modelList && modelList.length === 0 && (
+                        <p className="text-xs text-red-500">获取模型列表失败，并不影响使用</p>
                       )}
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setShowPromptEditor(!showPromptEditor)}
+                        className="w-full"
+                        onClick={() => setConfigExpanded(false)}
                       >
-                        {showPromptEditor ? (
-                          <ChevronUp className="w-4 h-4 mr-1" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 mr-1" />
-                        )}
-                        提示词
+                        <ChevronUp className="w-4 h-4 mr-1" />
+                        收起配置
                       </Button>
                     </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-                    {showPromptEditor && (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-32">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              每批数量
-                            </label>
-                            <input
-                              type="number"
-                              min={1}
-                              max={100}
-                              value={recommendBatchSize}
-                              onChange={(e) => setRecommendBatchSize(parseInt(e.target.value) || 30)}
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                              disabled={isRecommending}
-                            />
-                          </div>
-                          <span className="text-xs text-gray-400 mt-5">1-100，越大越快但可能超时</span>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            提示词预设
-                          </label>
-                          <div className="flex gap-2 mb-3">
-                            {(Object.keys(PRESETS) as PresetKey[]).map((key) => (
-                              <button
-                                key={key}
-                                onClick={() => {
-                                  setPromptPreset(key);
-                                  setCustomPrompt(PRESETS[key].prompt);
-                                }}
-                                disabled={isRecommending}
-                                className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
-                                  promptPreset === key
-                                    ? 'bg-primary-500 text-white border-primary-500'
-                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
-                                {PRESETS[key].label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            提示词内容（可自由修改）
-                          </label>
-                          <textarea
-                            value={customPrompt}
-                            onChange={(e) => setCustomPrompt(e.target.value)}
-                            rows={6}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
-                            placeholder="输入自定义提示词..."
-                            disabled={isRecommending}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <SubtitleTable
-                    subtitles={subtitles}
-                    selectedIndices={selectedIndices}
-                    onToggleSelection={toggleSelection}
-                    onSelectAll={toggleSelectAll}
-                    isAllSelected={selectedIndices.size === subtitles.length}
-                    recommendations={recommendations}
-                    isRecommending={isRecommending}
-                    recommendBatch={recommendBatch}
-                    recommendTotalBatches={recommendTotalBatches}
-                  />
-                  <Button
-                    variant="primary"
-                    className="w-full mt-4"
-                    onClick={handleProcess}
-                    disabled={selectedIndices.size === 0 || isProcessing || !videoFile || isRecommending}
-                  >
-                    开始处理 ({selectedIndices.size} 条)
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* 右侧：状态和结果 */}
-          <div className="space-y-6">
-            {/* 处理状态 */}
+          {/* Step 2 · 筛选内容 */}
+          {subtitles.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>处理进度</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">2</span>
+                  筛选内容
+                  <span className="text-sm font-normal text-gray-500 ml-2">
+                    (已选 {selectedIndices.size} / {subtitles.length})
+                  </span>
+                </CardTitle>
               </CardHeader>
               <CardContent>
+                {/* 工具栏 */}
+                <div className="flex items-center gap-2 mb-4">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleAIRecommend}
+                    disabled={isRecommending || isProcessing}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {isRecommending
+                      ? recommendTotalBatches > 0
+                        ? `分析中 ${recommendBatch}/${recommendTotalBatches}`
+                        : 'AI 分析中...'
+                      : 'AI 推荐'}
+                  </Button>
+                  {recommendations && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={selectRecommended}
+                    >
+                      仅选推荐
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPromptEditor(!showPromptEditor)}
+                  >
+                    {showPromptEditor ? (
+                      <ChevronUp className="w-4 h-4 mr-1" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 mr-1" />
+                    )}
+                    提示词
+                  </Button>
+                </div>
+
+                {/* 提示词编辑器 */}
+                {showPromptEditor && (
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-32">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">每批数量</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          value={recommendBatchSize}
+                          onChange={(e) => setRecommendBatchSize(parseInt(e.target.value) || 30)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          disabled={isRecommending}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-400 mt-4">1-100，越大越快但可能超时</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">提示词预设</label>
+                      <div className="flex gap-2">
+                        {(Object.keys(PRESETS) as PresetKey[]).map((key) => (
+                          <button
+                            key={key}
+                            onClick={() => {
+                              setPromptPreset(key);
+                              setCustomPrompt(PRESETS[key].prompt);
+                            }}
+                            disabled={isRecommending}
+                            className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
+                              promptPreset === key
+                                ? 'bg-primary-500 text-white border-primary-500'
+                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {PRESETS[key].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">提示词内容（可自由修改）</label>
+                      <textarea
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                        placeholder="输入自定义提示词..."
+                        disabled={isRecommending}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 字幕表格 - 全宽 */}
+                <SubtitleTable
+                  subtitles={subtitles}
+                  selectedIndices={selectedIndices}
+                  onToggleSelection={toggleSelection}
+                  onSelectAll={toggleSelectAll}
+                  isAllSelected={selectedIndices.size === subtitles.length}
+                  recommendations={recommendations}
+                  isRecommending={isRecommending}
+                  recommendBatch={recommendBatch}
+                  recommendTotalBatches={recommendTotalBatches}
+                />
+
+                {/* 底部按钮 */}
+                <Button
+                  variant="primary"
+                  className="w-full mt-4"
+                  onClick={handleProcess}
+                  disabled={selectedIndices.size === 0 || isProcessing || !videoFile || isRecommending}
+                >
+                  开始处理 ({selectedIndices.size} 条)
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 3 · 生成卡片 */}
+          {(isProcessing || (result && result.length > 0)) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">3</span>
+                  生成卡片
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* 处理进度 */}
                 <ProcessingStatus
                   steps={processingSteps}
                   currentStepIndex={currentStep}
@@ -1259,34 +1251,29 @@ function App() {
                     />
                   </div>
                 )}
+
+                {/* 卡片预览 */}
+                {result && result.length > 0 && (
+                  <div className="mt-6">
+                    <CardPreview
+                      cards={result}
+                      currentIndex={previewIndex}
+                      onPrevious={() => setPreviewIndex(Math.max(0, previewIndex - 1))}
+                      onNext={() => setPreviewIndex(Math.min(result.length - 1, previewIndex + 1))}
+                    />
+                    <Button
+                      variant="primary"
+                      className="w-full mt-4"
+                      onClick={handleDownload}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      下载牌组 (.apkg)
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
-
-            {/* 结果预览 */}
-            {result && result.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>卡片预览</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardPreview
-                    cards={result}
-                    currentIndex={previewIndex}
-                    onPrevious={() => setPreviewIndex(Math.max(0, previewIndex - 1))}
-                    onNext={() => setPreviewIndex(Math.min(result.length - 1, previewIndex + 1))}
-                  />
-                  <Button
-                    variant="primary"
-                    className="w-full mt-4"
-                    onClick={handleDownload}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    下载牌组 (.apkg)
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          )}
         </div>
       </main>
     </div>
