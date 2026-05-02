@@ -75,6 +75,7 @@ function App() {
   const [isRecommending, setIsRecommending] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const transcribingRef = useRef(false);
+  const transcribedVideoName = useRef<string | null>(null); // 记录已转录的视频名
   const [recommendBatch, setRecommendBatch] = useState(0);
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
@@ -101,6 +102,11 @@ function App() {
   const handleTranscribe = async () => {
     if (!videoFile || transcribingRef.current) return;
 
+    // 同一视频只转录一次
+    if (transcribedVideoName.current === videoFile.name) {
+      return;
+    }
+
     transcribingRef.current = true;
     setIsTranscribing(true);
     try {
@@ -108,6 +114,7 @@ function App() {
       setSubtitles(response.subtitles);
       setSelectedIndices(new Set(response.subtitles.map(s => s.index)));
       setRecommendations(null);
+      transcribedVideoName.current = videoFile.name;
     } catch (error) {
       console.error('转录失败:', error);
       alert('转录失败: ' + (error instanceof Error ? error.message : '未知错误'));
@@ -483,9 +490,9 @@ function App() {
               <CardContent className="space-y-4">
                 <FileUpload
                   accept=".mp4,.mkv,.avi,.mov,.webm"
-                  onFileSelect={setVideoFile}
+                  onFileSelect={(f) => { setVideoFile(f); transcribedVideoName.current = null; }}
                   selectedFile={videoFile}
-                  onClear={() => setVideoFile(null)}
+                  onClear={() => { setVideoFile(null); transcribedVideoName.current = null; }}
                   label="视频文件"
                   icon="video"
                 />
