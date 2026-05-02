@@ -460,13 +460,27 @@ _recommend_lock = _threading.Lock()
 def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_prompt: str,
                       batch_size: int = 30, api_base: str = "https://api.deepseek.com",
                       model_name: str = "deepseek-chat"):
-    """同步执行 AI 推荐（在后台线程中运行）"""
+    """同步执行 AI 推荐（后台线程，带重试机制）"""
+    import time as _time
     from openai import OpenAI
+
+    MAX_RETRIES = 3
+    RETRY_DELAYS = [2, 5, 10]  # 秒
+
+    # 瞬时错误关键词（可重试）
+    _TRANSIENT_KW = ("connection", "timeout", "rate limit", "server error",
+                     "503", "502", "500", "429", "unreachable", "refused",
+                     "reset by peer", "too many requests")
+
+    def _is_transient(err_msg: str) -> bool:
+        lower = err_msg.lower()
+        return any(kw in lower for kw in _TRANSIENT_KW)
 
     client = OpenAI(api_key=api_key, base_url=api_base)
     results = []
     batch_size = max(1, min(100, batch_size))
     total_batches = (len(subtitle_dicts) + batch_size - 1) // batch_size
+    failed_batches = 0
 
     with _recommend_lock:
         _recommend_store[task_id] = {
@@ -489,38 +503,57 @@ def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_p
                 "message": msg
             })
 
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.2,
-            )
+        batch_ok = False
+        last_error = ""
 
-            content = response.choices[0].message.content
-            print(f"    AI 响应: {content[:200]}...")
-            parsed = json.loads(content)
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.2,
+                )
 
-            if isinstance(parsed, dict):
-                items = parsed.get("items") or parsed.get("results")
-                if items and isinstance(items, list):
-                    results.extend(items)
+                content = response.choices[0].message.content
+                print(f"    AI 响应: {content[:200]}...")
+                parsed = json.loads(content)
+
+                if isinstance(parsed, dict):
+                    items = parsed.get("items") or parsed.get("results")
+                    if items and isinstance(items, list):
+                        results.extend(items)
+                    else:
+                        for v in parsed.values():
+                            if isinstance(v, list):
+                                results.extend(v)
+                                break
+                elif isinstance(parsed, list):
+                    results.extend(parsed)
+
+                batch_ok = True
+                break  # 成功，退出重试循环
+
+            except Exception as e:
+                last_error = _tr(str(e))
+                is_transient = _is_transient(str(e))
+
+                if is_transient and attempt < MAX_RETRIES:
+                    delay = RETRY_DELAYS[attempt]
+                    print(f"    批次 {batch_num} 失败（{last_error}），{delay}s 后重试 ({attempt+1}/{MAX_RETRIES})...")
+                    _time.sleep(delay)
                 else:
-                    for v in parsed.values():
-                        if isinstance(v, list):
-                            results.extend(v)
-                            break
-            elif isinstance(parsed, list):
-                results.extend(parsed)
+                    break  # 非瞬时错误或重试耗尽
 
-        except Exception as e:
-            msg = _tr(str(e))
-            print(f"    批次处理失败: {msg}")
+        if not batch_ok:
+            failed_batches += 1
+            reason = f"处理失败: {last_error}"
+            print(f"    批次 {batch_num} 最终失败: {last_error}")
             for item in batch:
-                results.append({"index": item["index"], "include": False, "reason": f"处理失败: {msg}"})
+                results.append({"index": item["index"], "include": False, "reason": reason})
 
     # 构建最终推荐结果
     recommendations = []
@@ -533,11 +566,15 @@ def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_p
             notes=item.get("notes") if item.get("include") else None
         ))
 
+    finish_msg = f"分析完成，共 {len(recommendations)} 条"
+    if failed_batches > 0:
+        finish_msg += f"（{failed_batches} 批失败）"
+
     with _recommend_lock:
         _recommend_store[task_id].update({
             "status": "completed",
             "batch": total_batches,
-            "message": f"分析完成，共 {len(recommendations)} 条",
+            "message": finish_msg,
             "result": AIRecommendResponse(recommendations=recommendations).model_dump()
         })
 
