@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Film, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { Film, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp, MessageSquare, Sun, Moon, Monitor } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/Card';
 import { Input } from './components/Input';
@@ -10,6 +10,7 @@ import { ProcessingStatus } from './components/ProcessingStatus';
 import { CardPreview } from './components/CardPreview';
 import { SubtitleItem, ProcessedCard, AIRecommendation } from './types';
 import { subtitleAPI, processAPI } from './services/api';
+import { useTheme } from './hooks/useTheme';
 
 // 格式化时间为 SRT 格式
 function formatSRTTime(seconds: number): string {
@@ -85,6 +86,7 @@ function loadAIConfig() {
 }
 
 function App() {
+  const { theme, toggleTheme } = useTheme();
   const savedConfig = loadAIConfig();
   const [apiBase, setApiBase] = useState(savedConfig?.apiBase || 'https://api.deepseek.com');
   const [modelName, setModelName] = useState(savedConfig?.modelName || 'deepseek-chat');
@@ -710,14 +712,14 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* 顶部导航 */}
-      <nav className="bg-white border-b border-gray-200">
+      <nav className="bg-white border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
               <Film className="w-8 h-8 text-primary-600" />
-              <h1 className="text-xl font-bold text-gray-900">Anki 卡片生成器</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Anki 卡片生成器</h1>
             </div>
             <div className="flex items-center gap-4">
               <Button
@@ -736,6 +738,14 @@ function App() {
                 <MessageSquare className="w-4 h-4 mr-2" />
                 反馈
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleTheme}
+                title={theme === 'system' ? '跟随系统' : theme === 'light' ? '浅色模式' : '深色模式'}
+              >
+                {theme === 'system' ? <Monitor className="w-4 h-4" /> : theme === 'light' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </Button>
             </div>
           </div>
         </div>
@@ -748,13 +758,13 @@ function App() {
             <CardContent>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold">使用说明</h3>
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+                <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 dark:bg-gray-700">
                   <button
                     onClick={() => setHelpTab('basic')}
                     className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                       helpTab === 'basic'
-                        ? 'bg-white text-gray-900 shadow'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-white text-gray-900 shadow dark:bg-gray-600 dark:text-gray-100'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                     }`}
                   >
                     基础
@@ -763,8 +773,8 @@ function App() {
                     onClick={() => setHelpTab('advanced')}
                     className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                       helpTab === 'advanced'
-                        ? 'bg-white text-gray-900 shadow'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-white text-gray-900 shadow dark:bg-gray-600 dark:text-gray-100'
+                        : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                     }`}
                   >
                     进阶
@@ -773,7 +783,7 @@ function App() {
               </div>
 
               {helpTab === 'basic' ? (
-                <ol className="list-decimal list-inside space-y-2 text-gray-700">
+                <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
                   <li>上传视频文件（.mp4 / .mkv / .avi）和字幕文件（.srt），或点击「生成字幕」自动转录</li>
                   <li>在配置区填写 API 地址、Key 和模型名称，点击「测试连接」验证</li>
                   <li>勾选目标句子，选择提示词预设，点击「AI 推荐」智能分析</li>
@@ -781,9 +791,9 @@ function App() {
                   <li>预览卡片，下载 .apkg 文件导入 Anki</li>
                 </ol>
               ) : (
-                <div className="space-y-4 text-sm text-gray-700">
+                <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
                   <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">AI 配置</h4>
+                    <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">AI 配置</h4>
                     <ul className="list-disc list-inside space-y-1 ml-2">
                       <li>支持 OpenAI / DeepSeek / Ollama 等兼容接口</li>
                       <li>填写 API 地址、模型名称、API Key 后可用「测试连接」验证</li>
@@ -791,7 +801,7 @@ function App() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">字幕获取</h4>
+                    <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">字幕获取</h4>
                     <ul className="list-disc list-inside space-y-1 ml-2">
                       <li>上传 .srt 字幕文件，或仅上传视频点击「生成字幕」使用 Whisper 转录</li>
                       <li>Whisper 模型可选 tiny / base / small / medium / large，越大越准但越慢</li>
@@ -799,7 +809,7 @@ function App() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">AI 推荐</h4>
+                    <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">AI 推荐</h4>
                     <ul className="list-disc list-inside space-y-1 ml-2">
                       <li>仅分析已勾选的句子，支持分批次处理（1-100 条/批）</li>
                       <li>内置「语法句型」和「背单词」两种预设，可自由修改提示词</li>
@@ -807,7 +817,7 @@ function App() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-gray-900 mb-1">卡片生成</h4>
+                    <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">卡片生成</h4>
                     <ul className="list-disc list-inside space-y-1 ml-2">
                       <li>每张卡片包含：原文、中文翻译、知识点注释、对应音频片段和视频截图</li>
                       <li>音频切割有 ±0.2s padding，先整体提取音轨再切片，高效不突兀</li>
@@ -825,7 +835,7 @@ function App() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">1</span>
+                <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold dark:bg-primary-900/40 dark:text-primary-300">1</span>
                 准备素材
               </CardTitle>
             </CardHeader>
@@ -862,10 +872,10 @@ function App() {
                     <div className="space-y-2">
                       {/* 已提取内嵌字幕 */}
                       {extractedSource && (
-                        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded border border-green-200">
+                        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded border border-green-200 dark:text-green-400 dark:bg-green-900/30 dark:border-green-800">
                           <span className="flex-1">{extractedSource}</span>
                           <button
-                            className="text-xs text-gray-500 underline hover:text-gray-700 shrink-0"
+                            className="text-xs text-gray-500 underline hover:text-gray-700 shrink-0 dark:text-gray-400 dark:hover:text-gray-200"
                             onClick={() => { setExtractedSource(''); setIsOcrExtracting(false); setShowModelPicker(true); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
                           >
                             改用 Whisper 转录
@@ -888,28 +898,28 @@ function App() {
                           {/* OCR 进度条 */}
                           {isOcrExtracting && (
                             <div className="space-y-1">
-                              <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-600">
                                 <div
                                   className="bg-green-500 h-2 rounded-full transition-all duration-300"
                                   style={{ width: `${ocrAnimProgress}%` }}
                                 />
                               </div>
-                              <p className="text-xs text-gray-500">{ocrMessage}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{ocrMessage}</p>
                             </div>
                           )}
                         </>
                       )}
                       {showModelPicker && !isTranscribing && !isOcrExtracting && (
-                        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
-                          <p className="text-sm font-medium text-gray-700">选择 Whisper 模型（首次使用会自动下载）</p>
+                        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3 dark:border-gray-600 dark:bg-gray-800">
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">选择 Whisper 模型（首次使用会自动下载）</p>
                           <div className="space-y-2">
                             {WHISPER_MODELS.map(m => (
                               <label
                                 key={m.key}
                                 className={`flex items-center gap-3 p-2 rounded cursor-pointer border transition-colors ${
                                   whisperModel === m.key
-                                    ? 'border-primary-500 bg-primary-50'
-                                    : 'border-gray-200 hover:bg-gray-100'
+                                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 dark:border-primary-400'
+                                    : 'border-gray-200 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700'
                                 }`}
                               >
                                 <input
@@ -922,9 +932,9 @@ function App() {
                                 />
                                 <div className="flex-1">
                                   <span className="font-medium text-sm">{m.label}</span>
-                                  <span className="text-xs text-gray-500 ml-2">{m.size}</span>
+                                  <span className="text-xs text-gray-500 ml-2 dark:text-gray-400">{m.size}</span>
                                 </div>
-                                <span className="text-xs text-gray-400">{m.speed}</span>
+                                <span className="text-xs text-gray-400 dark:text-gray-500">{m.speed}</span>
                               </label>
                             ))}
                           </div>
@@ -940,13 +950,13 @@ function App() {
                       )}
                       {isTranscribing && (
                         <div className="space-y-1">
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-600">
                             <div
                               className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${transcribeAnimProgress}%` }}
                             />
                           </div>
-                          <p className="text-xs text-gray-500">{transcribeMessage}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{transcribeMessage}</p>
                         </div>
                       )}
                     </div>
@@ -955,46 +965,46 @@ function App() {
 
                 {/* 右侧：AI 配置 */}
                 <div className="space-y-4">
-                  <div className="text-sm font-medium text-gray-700">AI 配置</div>
+                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">AI 配置</div>
                   {/* 折叠时显示摘要 */}
                   {!configExpanded && (
                     <div
-                      className="flex items-center justify-between cursor-pointer p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      className="flex items-center justify-between cursor-pointer p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors dark:bg-gray-800 dark:hover:bg-gray-700"
                       onClick={() => setConfigExpanded(true)}
                     >
-                      <span className="text-sm text-gray-600 truncate">
+                      <span className="text-sm text-gray-600 truncate dark:text-gray-400">
                         {apiBase.replace(/^https?:\/\//, '')} / {modelName}
                         {apiKey ? ` / ***${apiKey.slice(-4)}` : ' / 未设置 Key'}
                       </span>
-                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                      <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 dark:text-gray-500" />
                     </div>
                   )}
                   {/* 展开时显示完整配置 */}
                   {configExpanded && (
-                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg dark:bg-gray-800">
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">API 地址</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">API 地址</label>
                         <input
                           type="text"
                           value={apiBase}
                           onChange={(e) => setApiBase(e.target.value)}
                           placeholder="https://api.deepseek.com"
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">模型名称</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">模型名称</label>
                         <input
                           type="text"
                           value={modelName}
                           onChange={(e) => setModelName(e.target.value)}
                           placeholder="deepseek-chat"
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">最短时长(s)</label>
+                          <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">最短时长(s)</label>
                           <input
                             type="number"
                             step="0.1"
@@ -1002,11 +1012,11 @@ function App() {
                             max="5"
                             value={minDuration}
                             onChange={(e) => setMinDuration(parseFloat(e.target.value))}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">开头提前(ms)</label>
+                          <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">开头提前(ms)</label>
                           <input
                             type="number"
                             step="100"
@@ -1014,12 +1024,12 @@ function App() {
                             max="1000"
                             value={paddingStartMs}
                             onChange={(e) => setPaddingStartMs(parseInt(e.target.value) || 200)}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">结尾延后(ms)</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">结尾延后(ms)</label>
                         <input
                           type="number"
                           step="100"
@@ -1027,17 +1037,17 @@ function App() {
                           max="1000"
                           value={paddingEndMs}
                           onChange={(e) => setPaddingEndMs(parseInt(e.target.value) || 200)}
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">API Key</label>
                         <input
                           type="password"
                           value={apiKey}
                           onChange={(e) => { setApiKey(e.target.value); setTestResult(null); }}
                           placeholder="输入你的 API Key"
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         />
                       </div>
                       <div className="flex gap-2">
@@ -1064,13 +1074,13 @@ function App() {
                         </p>
                       )}
                       {modelList && modelList.length > 0 && (
-                        <div className="max-h-24 overflow-y-auto border border-gray-200 rounded p-1">
+                        <div className="max-h-24 overflow-y-auto border border-gray-200 rounded p-1 dark:border-gray-600">
                           {modelList.map(m => (
                             <button
                               key={m}
                               onClick={() => { setModelName(m); setModelList(null); }}
-                              className={`block w-full text-left px-2 py-1 text-xs rounded hover:bg-gray-100 ${
-                                m === modelName ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-600'
+                              className={`block w-full text-left px-2 py-1 text-xs rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                                m === modelName ? 'bg-primary-50 text-primary-700 font-medium dark:bg-primary-900/30 dark:text-primary-300' : 'text-gray-600 dark:text-gray-400'
                               }`}
                             >
                               {m}
@@ -1102,9 +1112,9 @@ function App() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">2</span>
+                  <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold dark:bg-primary-900/40 dark:text-primary-300">2</span>
                   筛选内容
-                  <span className="text-sm font-normal text-gray-500 ml-2">
+                  <span className="text-sm font-normal text-gray-500 ml-2 dark:text-gray-400">
                     (已选 {selectedIndices.size} / {subtitles.length})
                   </span>
                 </CardTitle>
@@ -1150,24 +1160,24 @@ function App() {
 
                 {/* 提示词编辑器 */}
                 {showPromptEditor && (
-                  <div className="mb-4 p-4 bg-gray-50 rounded-lg space-y-3">
+                  <div className="mb-4 p-4 bg-gray-50 rounded-lg space-y-3 dark:bg-gray-800">
                     <div className="flex items-center gap-3">
                       <div className="w-32">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">每批数量</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">每批数量</label>
                         <input
                           type="number"
                           min={1}
                           max={100}
                           value={recommendBatchSize}
                           onChange={(e) => setRecommendBatchSize(parseInt(e.target.value) || 30)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                           disabled={isRecommending}
                         />
                       </div>
-                      <span className="text-xs text-gray-400 mt-4">1-100，越大越快但可能超时</span>
+                      <span className="text-xs text-gray-400 mt-4 dark:text-gray-500">1-100，越大越快但可能超时</span>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">提示词预设</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">提示词预设</label>
                       <div className="flex gap-2">
                         {(Object.keys(PRESETS) as PresetKey[]).map((key) => (
                           <button
@@ -1180,7 +1190,7 @@ function App() {
                             className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
                               promptPreset === key
                                 ? 'bg-primary-500 text-white border-primary-500'
-                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600'
                             }`}
                           >
                             {PRESETS[key].label}
@@ -1189,12 +1199,12 @@ function App() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">提示词内容（可自由修改）</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">提示词内容（可自由修改）</label>
                       <textarea
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
                         rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         placeholder="输入自定义提示词..."
                         disabled={isRecommending}
                       />
@@ -1233,7 +1243,7 @@ function App() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">3</span>
+                  <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold dark:bg-primary-900/40 dark:text-primary-300">3</span>
                   生成卡片
                 </CardTitle>
               </CardHeader>

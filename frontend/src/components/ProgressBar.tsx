@@ -13,12 +13,12 @@ export const ProgressBar = ({ progress, className, showLabel = true, label }: Pr
   return (
     <div className={cn('w-full', className)}>
       {showLabel && (
-        <div className="flex justify-between text-sm text-gray-600 mb-1">
+        <div className="flex justify-between text-sm text-gray-600 mb-1 dark:text-gray-400">
           <span>{label || '处理进度'}</span>
           <span>{percentage.toFixed(0)}%</span>
         </div>
       )}
-      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden dark:bg-gray-700">
         <div
           className="bg-primary-600 h-2 rounded-full transition-all duration-300 ease-out"
           style={{ width: `${percentage}%` }}
