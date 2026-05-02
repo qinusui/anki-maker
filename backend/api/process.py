@@ -8,6 +8,7 @@ from typing import List, Optional
 import os
 import shutil
 import uuid
+import asyncio
 from datetime import datetime
 
 from models.schemas import ProcessRequest, ProcessResult, ProcessedCard, ProcessProgress
@@ -72,12 +73,16 @@ async def upload_and_process(
         if api_key:
             os.environ["DEEPSEEK_API_KEY"] = api_key
 
-        # 调用处理函数
-        result = process_cards(
-            video_path=str(video_path),
-            subtitle_path=str(subtitle_path),
-            output_dir=output_dir,
-            min_duration=min_duration
+        # 在线程池中执行，避免阻塞事件循环（心跳需要响应）
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            process_cards,
+            str(video_path),
+            str(subtitle_path),
+            output_dir,
+            None,  # api_key (already set in env)
+            min_duration
         )
 
         # 从返回结果中获取信息
@@ -158,12 +163,16 @@ async def start_processing(
         os.environ["DEEPSEEK_API_KEY"] = api_key
 
     try:
-        # 调用处理函数
-        result = process_cards(
-            video_path=str(video_path),
-            subtitle_path=str(subtitle_path),
-            output_dir=output_dir,
-            min_duration=min_duration
+        # 在线程池中执行，避免阻塞事件循环（心跳需要响应）
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            process_cards,
+            str(video_path),
+            str(subtitle_path),
+            output_dir,
+            None,  # api_key (already set in env)
+            min_duration
         )
 
         # 从返回结果中获取信息
