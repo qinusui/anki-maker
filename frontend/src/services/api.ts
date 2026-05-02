@@ -97,6 +97,14 @@ export const processAPI = {
     };
   },
 
+  // 清理输出文件
+  cleanup: async (apkgFilename: string) => {
+    const response = await api.post('/api/process/cleanup', null, {
+      params: { apkg_filename: apkgFilename },
+    });
+    return response.data;
+  },
+
   // 验证 API Key
   validateApiKey: async (apiKey: string): Promise<{ valid: boolean; message: string }> => {
     const response = await api.post<{ valid: boolean; message: string }>('/api/process/validate-api-key', null, {

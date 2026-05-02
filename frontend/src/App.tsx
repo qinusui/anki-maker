@@ -233,6 +233,13 @@ function App() {
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
+
+      // 下载后清理服务端文件
+      try {
+        await processAPI.cleanup(apkgPath);
+      } catch (e) {
+        console.error('清理文件失败:', e);
+      }
     } catch (error) {
       console.error('下载失败:', error);
       alert('下载失败，请手动访问: /download/' + encodeURIComponent(apkgPath));

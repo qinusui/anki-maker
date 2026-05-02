@@ -189,6 +189,40 @@ async def get_progress(task_id: str):
     return response
 
 
+@router.post("/cleanup")
+async def cleanup_output(apkg_filename: str):
+    """
+    下载后清理 output 目录的文件
+
+    Args:
+        apkg_filename: apkg 文件名
+    """
+    import shutil
+
+    output_dir = Path(__file__).parent.parent / "output"
+    cleaned = []
+
+    # 删除 apkg 文件
+    apkg_path = output_dir / apkg_filename
+    if apkg_path.exists():
+        apkg_path.unlink()
+        cleaned.append(str(apkg_path))
+
+    # 删除音频目录
+    audio_dir = output_dir / "audio"
+    if audio_dir.exists():
+        shutil.rmtree(str(audio_dir), ignore_errors=True)
+        cleaned.append(str(audio_dir))
+
+    # 删除截图目录
+    screenshot_dir = output_dir / "screenshots"
+    if screenshot_dir.exists():
+        shutil.rmtree(str(screenshot_dir), ignore_errors=True)
+        cleaned.append(str(screenshot_dir))
+
+    return {"cleaned": cleaned}
+
+
 @router.post("/start", response_model=ProcessResult)
 async def start_processing(
     video_file_path: str,
