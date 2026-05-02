@@ -9,6 +9,8 @@ interface SubtitleTableProps {
   isAllSelected: boolean;
   recommendations: Map<number, AIRecommendation> | null;
   isRecommending: boolean;
+  recommendBatch: number;
+  recommendTotalBatches: number;
 }
 
 export const SubtitleTable = ({
@@ -19,6 +21,8 @@ export const SubtitleTable = ({
   isAllSelected,
   recommendations,
   isRecommending,
+  recommendBatch,
+  recommendTotalBatches,
 }: SubtitleTableProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -59,7 +63,9 @@ export const SubtitleTable = ({
         {isRecommending && subtitles.length > 0 && (
           <div className="px-4 py-2 bg-blue-50 text-blue-700 text-sm flex items-center gap-2">
             <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-            AI 正在分析字幕，评估学习价值...
+            {recommendTotalBatches > 0
+              ? `AI 分析中：第 ${recommendBatch}/${recommendTotalBatches} 批`
+              : 'AI 正在分析字幕，评估学习价值...'}
           </div>
         )}
         {subtitles.map((subtitle) => {

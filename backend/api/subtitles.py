@@ -111,8 +111,16 @@ def _build_system_prompt(custom_prompt: str = None) -> str:
     return criteria + RETURN_FORMAT
 
 
-def _run_ai_recommend(subtitle_dicts: list, api_key: str, system_prompt: str) -> list:
-    """同步执行 AI 推荐（在线程池中运行）"""
+# AI 推荐任务进度存储
+import threading as _threading
+import uuid as _uuid
+
+_recommend_store: dict = {}
+_recommend_lock = _threading.Lock()
+
+
+def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_prompt: str):
+    """同步执行 AI 推荐（在后台线程中运行）"""
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
@@ -120,10 +128,26 @@ def _run_ai_recommend(subtitle_dicts: list, api_key: str, system_prompt: str) ->
     batch_size = 30
     total_batches = (len(subtitle_dicts) + batch_size - 1) // batch_size
 
+    with _recommend_lock:
+        _recommend_store[task_id] = {
+            "status": "processing",
+            "batch": 0,
+            "total_batches": total_batches,
+            "message": "开始分析..."
+        }
+
     for i in range(0, len(subtitle_dicts), batch_size):
         batch = subtitle_dicts[i:i + batch_size]
         batch_num = i // batch_size + 1
-        print(f"  AI 推荐：处理第 {batch_num}/{total_batches} 批 ({len(batch)} 条)...")
+        msg = f"处理第 {batch_num}/{total_batches} 批 ({len(batch)} 条)..."
+        print(f"  AI 推荐：{msg}")
+
+        with _recommend_lock:
+            _recommend_store[task_id].update({
+                "batch": batch_num,
+                "total_batches": total_batches,
+                "message": msg
+            })
 
         try:
             response = client.chat.completions.create(
@@ -141,12 +165,10 @@ def _run_ai_recommend(subtitle_dicts: list, api_key: str, system_prompt: str) ->
             parsed = json.loads(content)
 
             if isinstance(parsed, dict):
-                # 优先匹配 items / results 键名
                 items = parsed.get("items") or parsed.get("results")
                 if items and isinstance(items, list):
                     results.extend(items)
                 else:
-                    # 兜底：找 dict 中第一个数组值
                     for v in parsed.values():
                         if isinstance(v, list):
                             results.extend(v)
@@ -159,19 +181,31 @@ def _run_ai_recommend(subtitle_dicts: list, api_key: str, system_prompt: str) ->
             for item in batch:
                 results.append({"index": item["index"], "include": False, "reason": f"处理失败: {e}"})
 
-    return results
+    # 构建最终推荐结果
+    recommendations = []
+    for item in results:
+        recommendations.append(AIRecommendItem(
+            index=item.get("index", 0),
+            include=item.get("include", False),
+            reason=item.get("reason", ""),
+            translation=item.get("translation") if item.get("include") else None,
+            notes=item.get("notes") if item.get("include") else None
+        ))
+
+    with _recommend_lock:
+        _recommend_store[task_id].update({
+            "status": "completed",
+            "batch": total_batches,
+            "message": f"分析完成，共 {len(recommendations)} 条",
+            "result": AIRecommendResponse(recommendations=recommendations).model_dump()
+        })
 
 
-@router.post("/ai-recommend", response_model=AIRecommendResponse)
+@router.post("/ai-recommend")
 async def ai_recommend(request: AIRecommendRequest):
     """
-    AI 分析字幕，推荐值得学习的句子
-
-    Args:
-        request: 包含字幕列表、API Key 和可选的自定义提示词
+    AI 分析字幕，推荐值得学习的句子（后台异步，通过 progress 端点轮询）
     """
-    import asyncio
-
     api_key = request.api_key or os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
         raise HTTPException(status_code=400, detail="需要提供 API Key")
@@ -183,27 +217,29 @@ async def ai_recommend(request: AIRecommendRequest):
         for s in request.subtitles
     ]
 
-    # 在线程池中执行，避免阻塞事件循环
-    loop = asyncio.get_event_loop()
-    results = await loop.run_in_executor(
-        None,
-        _run_ai_recommend,
-        subtitle_dicts,
-        api_key,
-        system_prompt
+    task_id = str(_uuid.uuid4())
+
+    # 在后台线程中执行
+    thread = _threading.Thread(
+        target=_run_ai_recommend,
+        args=(task_id, subtitle_dicts, api_key, system_prompt),
+        daemon=True
     )
+    thread.start()
 
-    recommendations = []
-    for item in results:
-        recommendations.append(AIRecommendItem(
-            index=item.get("index", 0),
-            include=item.get("include", False),
-            reason=item.get("reason", ""),
-            translation=item.get("translation") if item.get("include") else None,
-            notes=item.get("notes") if item.get("include") else None
-        ))
+    return {"task_id": task_id, "status": "started"}
 
-    return AIRecommendResponse(recommendations=recommendations)
+
+@router.get("/ai-recommend/progress/{task_id}")
+async def ai_recommend_progress(task_id: str):
+    """获取 AI 推荐的实时处理进度"""
+    with _recommend_lock:
+        task = _recommend_store.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    return task
 
 
 @router.get("/example", response_model=SubtitleListResponse)

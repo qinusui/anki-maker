@@ -36,20 +36,29 @@ export const subtitleAPI = {
     return response.data;
   },
 
-  // AI 推荐（超时 10 分钟，字幕多时 AI 处理需要时间）
-  recommend: async (
+  // AI 推荐：启动任务
+  startRecommend: async (
     subtitles: SubtitleItem[],
     apiKey?: string,
     customPrompt?: string
-  ): Promise<AIRecommendResponse> => {
-    const response = await api.post<AIRecommendResponse>('/api/subtitles/ai-recommend', {
-      subtitles,
-      api_key: apiKey || undefined,
-      custom_prompt: customPrompt || undefined,
-    }, {
-      timeout: 600000, // 10 分钟
-    });
+  ): Promise<{ task_id: string; status: string }> => {
+    const response = await api.post<{ task_id: string; status: string }>(
+      '/api/subtitles/ai-recommend',
+      { subtitles, api_key: apiKey || undefined, custom_prompt: customPrompt || undefined }
+    );
     return response.data;
+  },
+
+  // AI 推荐：获取进度
+  getRecommendProgress: async (taskId: string) => {
+    const response = await api.get(`/api/subtitles/ai-recommend/progress/${taskId}`);
+    return response.data as {
+      status: string;
+      batch: number;
+      total_batches: number;
+      message: string;
+      result?: AIRecommendResponse;
+    };
   },
 };
 

@@ -73,6 +73,8 @@ function App() {
   // AI 推荐相关
   const [recommendations, setRecommendations] = useState<Map<number, AIRecommendation> | null>(null);
   const [isRecommending, setIsRecommending] = useState(false);
+  const [recommendBatch, setRecommendBatch] = useState(0);
+  const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
   const [showPromptEditor, setShowPromptEditor] = useState(false);
 
@@ -137,27 +139,49 @@ function App() {
 
     setIsRecommending(true);
     setRecommendations(null);
+    setRecommendBatch(0);
+    setRecommendTotalBatches(0);
 
     try {
-      const response = await subtitleAPI.recommend(
+      // 1. 启动 AI 推荐任务
+      const { task_id } = await subtitleAPI.startRecommend(
         subtitles,
         apiKey,
         customPrompt || undefined
       );
 
-      const map = new Map<number, AIRecommendation>();
-      response.recommendations.forEach(r => map.set(r.index, r));
-      setRecommendations(map);
+      // 2. 轮询进度
+      const pollInterval = setInterval(async () => {
+        try {
+          const progress = await subtitleAPI.getRecommendProgress(task_id);
 
-      // 自动选中推荐的句子
-      const recommendedIndices = response.recommendations
-        .filter(r => r.include)
-        .map(r => r.index);
-      setSelectedIndices(new Set(recommendedIndices));
+          setRecommendBatch(progress.batch);
+          setRecommendTotalBatches(progress.total_batches);
+
+          if (progress.status === 'completed' && progress.result) {
+            clearInterval(pollInterval);
+            setIsRecommending(false);
+
+            const map = new Map<number, AIRecommendation>();
+            progress.result.recommendations.forEach(r => map.set(r.index, r));
+            setRecommendations(map);
+
+            // 自动选中推荐的句子
+            const recommendedIndices = progress.result.recommendations
+              .filter(r => r.include)
+              .map(r => r.index);
+            setSelectedIndices(new Set(recommendedIndices));
+          }
+        } catch (e) {
+          // 轮询失败不中断
+        }
+      }, 1000);
+
+      (window as any).__recommendPoll = pollInterval;
+
     } catch (error) {
       console.error('AI 推荐失败:', error);
       alert('AI 推荐失败: ' + (error instanceof Error ? error.message : '未知错误'));
-    } finally {
       setIsRecommending(false);
     }
   };
@@ -479,7 +503,11 @@ function App() {
                         disabled={isRecommending || isProcessing}
                       >
                         <Sparkles className="w-4 h-4 mr-2" />
-                        {isRecommending ? 'AI 分析中...' : 'AI 推荐'}
+                        {isRecommending
+                          ? recommendTotalBatches > 0
+                            ? `分析中 ${recommendBatch}/${recommendTotalBatches}`
+                            : 'AI 分析中...'
+                          : 'AI 推荐'}
                       </Button>
                       {recommendations && (
                         <Button
@@ -529,6 +557,8 @@ function App() {
                     isAllSelected={selectedIndices.size === subtitles.length}
                     recommendations={recommendations}
                     isRecommending={isRecommending}
+                    recommendBatch={recommendBatch}
+                    recommendTotalBatches={recommendTotalBatches}
                   />
                   <Button
                     variant="primary"
