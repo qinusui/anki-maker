@@ -62,7 +62,7 @@ function App() {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
 
-  // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
+  // 每 3 秒发送心跳（延迟 3 秒等后端就绪）
   useEffect(() => {
     const sendHeartbeat = () => {
       fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
@@ -71,7 +71,7 @@ function App() {
       sendHeartbeat();
       const interval = setInterval(sendHeartbeat, 3000);
       (window as any).__heartbeatInterval = interval;
-    }, 6000);
+    }, 3000);
     return () => {
       clearTimeout(timer);
       clearInterval((window as any).__heartbeatInterval);

@@ -34,7 +34,7 @@ app = FastAPI(
 # CORS 配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Vite 默认端口
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,7 +45,8 @@ static_dir = Path(__file__).parent / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-# 挂载输出目录供下载和预览
+# 挂载输出目录供下载和预览 - 与 process.py 中的 ./output 保持一致
+# 因为服务从 backend/ 目录启动，CWD 就是 backend/
 output_dir = Path(__file__).parent / "output"
 output_dir.mkdir(exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
@@ -56,6 +57,7 @@ app.include_router(process_router, prefix="/api/process", tags=["process"])
 app.include_router(cards_router, prefix="/api/cards", tags=["cards"])
 
 # ---- 自动关闭机制 ----
+# 初始设为 60 秒后，给浏览器启动和页面加载留足时间
 _last_heartbeat = time.time() + 60
 _shutdown_lock = threading.Lock()
 
@@ -70,6 +72,7 @@ def _kill_processes():
     except Exception:
         return
 
+    # 先关闭前端，再关闭后端
     for key in ('frontend_pid', 'backend_pid'):
         pid = pids.get(key)
         if pid:
@@ -78,6 +81,7 @@ def _kill_processes():
             except Exception:
                 pass
 
+    # 清理 PID 文件
     pid_file.unlink(missing_ok=True)
 
 
@@ -92,6 +96,7 @@ def _shutdown_watcher():
                 os._exit(0)
 
 
+# 仅在 start-all.py 启动时（存在 PID 文件）启用自动关闭
 _pid_file = Path(__file__).parent / 'pids.json'
 if _pid_file.exists():
     _watcher_thread = threading.Thread(target=_shutdown_watcher, daemon=True)
@@ -100,6 +105,7 @@ if _pid_file.exists():
 
 @app.post("/api/heartbeat")
 async def heartbeat():
+    """前端心跳 — 表明页面仍在使用中"""
     global _last_heartbeat
     with _shutdown_lock:
         _last_heartbeat = time.time()
