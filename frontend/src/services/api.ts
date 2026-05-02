@@ -30,13 +30,13 @@ export const subtitleAPI = {
     return response.data;
   },
 
-  // Whisper 转录视频生成字幕
-  transcribe: async (
+  // Whisper 转录：启动任务
+  startTranscribe: async (
     video: File,
     minDuration: number = 1.0,
     language?: string,
     modelName?: string
-  ): Promise<SubtitleListResponse> => {
+  ): Promise<{ task_id: string; status: string }> => {
     const formData = new FormData();
     formData.append('video', video);
     const params = new URLSearchParams();
@@ -44,12 +44,25 @@ export const subtitleAPI = {
     if (language) params.append('language', language);
     if (modelName) params.append('model_name', modelName);
 
-    const response = await api.post<SubtitleListResponse>(
+    const response = await api.post<{ task_id: string; status: string }>(
       `/api/subtitles/transcribe?${params.toString()}`,
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 }
     );
     return response.data;
+  },
+
+  // Whisper 转录：获取进度
+  getTranscribeProgress: async (taskId: string) => {
+    const response = await api.get(`/api/subtitles/transcribe/progress/${taskId}`);
+    return response.data as {
+      status: string;
+      step: number;
+      total_steps: number;
+      message: string;
+      error?: string;
+      result?: SubtitleListResponse;
+    };
   },
 
   // 获取示例字幕

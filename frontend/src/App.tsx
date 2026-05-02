@@ -75,7 +75,10 @@ function App() {
   const [isRecommending, setIsRecommending] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const transcribingRef = useRef(false);
-  const transcribedVideoName = useRef<string | null>(null); // 记录已转录的视频名
+  const transcribedVideoName = useRef<string | null>(null);
+  const [transcribeStep, setTranscribeStep] = useState(0);
+  const [transcribeTotalSteps, setTranscribeTotalSteps] = useState(4);
+  const [transcribeMessage, setTranscribeMessage] = useState('');
   const [recommendBatch, setRecommendBatch] = useState(0);
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState(DEFAULT_RECOMMEND_PROMPT);
@@ -102,25 +105,56 @@ function App() {
   const handleTranscribe = async () => {
     if (!videoFile || transcribingRef.current) return;
 
-    // 同一视频只转录一次
     if (transcribedVideoName.current === videoFile.name) {
       return;
     }
 
     transcribingRef.current = true;
     setIsTranscribing(true);
+    setTranscribeStep(0);
+    setTranscribeTotalSteps(4);
+    setTranscribeMessage('准备转录...');
+
     try {
-      const response = await subtitleAPI.transcribe(videoFile, minDuration);
-      setSubtitles(response.subtitles);
-      setSelectedIndices(new Set(response.subtitles.map(s => s.index)));
-      setRecommendations(null);
-      transcribedVideoName.current = videoFile.name;
+      const { task_id } = await subtitleAPI.startTranscribe(videoFile, minDuration);
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const progress = await subtitleAPI.getTranscribeProgress(task_id);
+
+          setTranscribeStep(progress.step);
+          setTranscribeTotalSteps(progress.total_steps);
+          setTranscribeMessage(progress.message);
+
+          if (progress.status === 'completed' && progress.result) {
+            clearInterval(pollInterval);
+            setIsTranscribing(false);
+            transcribingRef.current = false;
+
+            setSubtitles(progress.result.subtitles);
+            setSelectedIndices(new Set(progress.result.subtitles.map((s: SubtitleItem) => s.index)));
+            setRecommendations(null);
+            transcribedVideoName.current = videoFile.name;
+          }
+
+          if (progress.status === 'error') {
+            clearInterval(pollInterval);
+            setIsTranscribing(false);
+            transcribingRef.current = false;
+            alert(progress.error || '转录失败');
+          }
+        } catch (e) {
+          // 轮询失败不中断
+        }
+      }, 1000);
+
+      (window as any).__transcribePoll = pollInterval;
+
     } catch (error) {
       console.error('转录失败:', error);
       alert('转录失败: ' + (error instanceof Error ? error.message : '未知错误'));
-    } finally {
-      transcribingRef.current = false;
       setIsTranscribing(false);
+      transcribingRef.current = false;
     }
   };
 
@@ -514,14 +548,27 @@ function App() {
                     加载字幕
                   </Button>
                 ) : (
-                  <Button
-                    variant="primary"
-                    className="w-full"
-                    onClick={handleTranscribe}
-                    disabled={!videoFile || isProcessing || isTranscribing}
-                  >
-                    {isTranscribing ? 'Whisper 转录中...' : '生成字幕'}
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      variant="primary"
+                      className="w-full"
+                      onClick={handleTranscribe}
+                      disabled={!videoFile || isProcessing || isTranscribing}
+                    >
+                      {isTranscribing ? '转录中...' : '生成字幕'}
+                    </Button>
+                    {isTranscribing && (
+                      <div className="space-y-1">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${(transcribeStep / transcribeTotalSteps) * 100}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500">{transcribeMessage}</p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>

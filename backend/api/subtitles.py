@@ -242,67 +242,53 @@ async def ai_recommend_progress(task_id: str):
     return task
 
 
-def _run_transcribe(video_path: str, srt_path: str, model_name: str, language: str, min_duration: float):
-    """同步执行转录（在线程池中运行）"""
+# 转录任务进度存储
+_transcribe_store: dict = {}
+_transcribe_lock = _threading.Lock()
+
+
+def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
+                         model_name: str, language: str, min_duration: float):
+    """后台执行转录，实时更新进度"""
     sys.path.append(str(Path(__file__).parent.parent.parent))
-    from whisper_transcribe import transcribe_video, save_as_srt
 
-    segments = transcribe_video(
-        str(video_path),
-        model_name=model_name,
-        language=language
-    )
-    print(f"  转录完成，共 {len(segments)} 段")
-
-    save_as_srt(segments, str(srt_path))
-
-    subtitles = parse_srt(str(srt_path))
-    original_count = len(subtitles)
-    subtitles = filter_short_subtitles(subtitles, min_duration)
-
-    return original_count, subtitles
-
-
-@router.post("/transcribe", response_model=SubtitleListResponse)
-async def transcribe_video_endpoint(
-    video: UploadFile = File(...),
-    min_duration: float = 1.0,
-    language: Optional[str] = None,
-    model_name: str = "base"
-):
-    """
-    使用 Whisper 将视频转录为字幕
-
-    Args:
-        video: 视频文件
-        min_duration: 最短字幕时长过滤
-        language: 语言代码（如 en, zh），None 则自动检测
-        model_name: Whisper 模型 (tiny, base, small, medium, large)
-    """
-    if not video.filename:
-        raise HTTPException(status_code=400, detail="未提供视频文件")
-
-    temp_dir = Path(__file__).parent.parent.parent / "temp"
-    temp_dir.mkdir(exist_ok=True)
-
-    video_path = temp_dir / f"transcribe_{video.filename}"
-    srt_path = temp_dir / f"transcribe_{video.filename}.srt"
+    def update(status, step, message):
+        with _transcribe_lock:
+            _transcribe_store[task_id] = {"status": status, "step": step, "total_steps": 4, "message": message}
 
     try:
-        with open(video_path, "wb") as f:
-            shutil.copyfileobj(video.file, f)
+        update("processing", 0, "保存视频文件...")
 
-        # 在线程池中执行转录，避免阻塞事件循环
-        loop = asyncio.get_event_loop()
-        original_count, subtitles = await loop.run_in_executor(
-            None,
-            _run_transcribe,
-            str(video_path),
-            str(srt_path),
-            model_name,
-            language,
-            min_duration
+        from whisper_transcribe import transcribe_video, save_as_srt
+
+        update("processing", 1, "加载 Whisper 模型...")
+        import whisper
+        model = whisper.load_model(model_name)
+
+        update("processing", 2, "转录中，请耐心等待...")
+        result = model.transcribe(
+            str(video_path_str),
+            language=language,
+            word_timestamps=True,
+            verbose=False
         )
+
+        segments = []
+        for segment in result.get("segments", []):
+            segments.append({
+                "start": segment["start"],
+                "end": segment["end"],
+                "text": segment["text"].strip()
+            })
+        print(f"  转录完成，共 {len(segments)} 段")
+
+        save_as_srt(segments, str(srt_path_str))
+
+        update("processing", 3, "解析生成的字幕...")
+
+        subtitles = parse_srt(str(srt_path_str))
+        original_count = len(subtitles)
+        subtitles = filter_short_subtitles(subtitles, min_duration)
 
         subtitle_items = [
             SubtitleItem(
@@ -315,20 +301,89 @@ async def transcribe_video_endpoint(
             for sub in subtitles
         ]
 
-        return SubtitleListResponse(
-            subtitles=subtitle_items,
-            total=original_count,
-            filtered=len(subtitle_items)
-        )
+        with _transcribe_lock:
+            _transcribe_store[task_id] = {
+                "status": "completed",
+                "step": 4,
+                "total_steps": 4,
+                "message": f"转录完成，共 {len(subtitle_items)} 条字幕",
+                "result": {
+                    "subtitles": [s.model_dump() for s in subtitle_items],
+                    "total": original_count,
+                    "filtered": len(subtitle_items)
+                }
+            }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"转录失败: {str(e)}")
+        with _transcribe_lock:
+            _transcribe_store[task_id] = {
+                "status": "error",
+                "step": 0,
+                "total_steps": 4,
+                "message": f"转录失败: {str(e)}",
+                "error": str(e)
+            }
 
     finally:
-        if video_path.exists():
-            video_path.unlink()
-        if srt_path.exists():
-            srt_path.unlink()
+        # 清理临时文件
+        if Path(video_path_str).exists():
+            Path(video_path_str).unlink(missing_ok=True)
+        if Path(srt_path_str).exists():
+            Path(srt_path_str).unlink(missing_ok=True)
+
+
+@router.post("/transcribe")
+async def transcribe_video_endpoint(
+    video: UploadFile = File(...),
+    min_duration: float = 1.0,
+    language: Optional[str] = None,
+    model_name: str = "base"
+):
+    """
+    使用 Whisper 将视频转录为字幕（后台异步，通过 progress 端点轮询）
+    """
+    if not video.filename:
+        raise HTTPException(status_code=400, detail="未提供视频文件")
+
+    temp_dir = Path(__file__).parent.parent.parent / "temp"
+    temp_dir.mkdir(exist_ok=True)
+
+    video_path = temp_dir / f"transcribe_{video.filename}"
+    srt_path = temp_dir / f"transcribe_{video.filename}.srt"
+
+    with open(video_path, "wb") as f:
+        shutil.copyfileobj(video.file, f)
+
+    task_id = str(_uuid.uuid4())
+
+    with _transcribe_lock:
+        _transcribe_store[task_id] = {
+            "status": "preparing",
+            "step": 0,
+            "total_steps": 4,
+            "message": "准备转录..."
+        }
+
+    thread = _threading.Thread(
+        target=_run_transcribe_task,
+        args=(task_id, str(video_path), str(srt_path), model_name, language, min_duration),
+        daemon=True
+    )
+    thread.start()
+
+    return {"task_id": task_id, "status": "started"}
+
+
+@router.get("/transcribe/progress/{task_id}")
+async def transcribe_progress(task_id: str):
+    """获取转录实时进度"""
+    with _transcribe_lock:
+        task = _transcribe_store.get(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    return task
 
 
 @router.get("/example", response_model=SubtitleListResponse)
