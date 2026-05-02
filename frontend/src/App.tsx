@@ -166,9 +166,26 @@ function App() {
   };
 
   // 下载文件
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!apkgPath) return;
-    window.open(`/download/${apkgPath.split('/').pop()}`, '_blank');
+
+    try {
+      // 创建一个临时链接下载
+      const response = await fetch(`/download/${encodeURIComponent(apkgPath)}`);
+      const blob = await response.blob();
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = apkgPath.split('/').pop() || 'deck.apkg';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (error) {
+      console.error('下载失败:', error);
+      alert('下载失败，请手动访问: /download/' + encodeURIComponent(apkgPath));
+    }
   };
 
   // 切换选中状态

@@ -85,7 +85,12 @@ async def upload_and_process(
         cards_count = result["cards_count"]
         processed_data = result.get("processed", [])
 
-        # 获取生成的文件名
+        # 将相对路径转为绝对路径，用于下载
+        output_dir_path = Path(output_dir)
+        if not output_dir_path.is_absolute():
+            output_dir_path = Path.cwd() / output_dir_path
+
+        apkg_full_path = output_dir_path / apkg_path
         apkg_filename = Path(apkg_path).name
 
         # 将 processed 数据转换为 ProcessedCard 格式
