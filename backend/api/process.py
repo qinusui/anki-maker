@@ -2,11 +2,12 @@
 处理相关 API - 处理字幕并生成卡片
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pathlib import Path
 from typing import List, Optional
 import os
-import asyncio
+import shutil
+import uuid
 from datetime import datetime
 
 from models.schemas import ProcessRequest, ProcessResult, ProcessedCard, ProcessProgress
@@ -14,12 +15,88 @@ from models.schemas import ProcessRequest, ProcessResult, ProcessedCard, Process
 # 导入现有模块
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from main import run as process_cards
+# 导入项目根目录的 main 模块（避免循环导入）
+import importlib.util
+spec = importlib.util.spec_from_file_location("main", str(Path(__file__).parent.parent.parent / "main.py"))
+main_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(main_module)
+process_cards = main_module.run
 
 router = APIRouter()
 
-# 全局变量存储处理状态
-processing_status = {}
+# 临时文件存储目录
+TEMP_DIR = Path(__file__).parent.parent.parent / "temp"
+TEMP_DIR.mkdir(exist_ok=True)
+
+
+@router.post("/upload-and-process", response_model=ProcessResult)
+async def upload_and_process(
+    video: UploadFile = File(...),
+    subtitle: UploadFile = File(...),
+    min_duration: float = Form(1.0),
+    output_dir: str = Form("./output"),
+    api_key: Optional[str] = Form(None)
+):
+    """
+    上传视频和字幕文件，并立即开始处理
+
+    Args:
+        video: 视频文件
+        subtitle: 字幕文件
+        min_duration: 最短字幕时长
+        output_dir: 输出目录
+        api_key: DeepSeek API Key
+
+    Returns:
+        ProcessResult: 处理结果
+    """
+    # 生成唯一的任务 ID
+    task_id = str(uuid.uuid4())
+    task_dir = TEMP_DIR / task_id
+    task_dir.mkdir(exist_ok=True)
+
+    # 保存上传的文件
+    video_path = task_dir / video.filename
+    subtitle_path = task_dir / subtitle.filename
+
+    try:
+        # 保存视频文件
+        with open(video_path, "wb") as f:
+            shutil.copyfileobj(video.file, f)
+
+        # 保存字幕文件
+        with open(subtitle_path, "wb") as f:
+            shutil.copyfileobj(subtitle.file, f)
+
+        # 设置 API Key
+        if api_key:
+            os.environ["DEEPSEEK_API_KEY"] = api_key
+
+        # 调用处理函数
+        apkg_path = process_cards(
+            video_path=str(video_path),
+            subtitle_path=str(subtitle_path),
+            output_dir=output_dir,
+            min_duration=min_duration
+        )
+
+        # 获取生成的文件名
+        apkg_filename = Path(apkg_path).name
+
+        # 这里简化处理，返回空卡片列表
+        # 实际可以从 apkg 文件中提取卡片数据
+        return ProcessResult(
+            success=True,
+            message="处理完成",
+            cards_count=0,  # 需要从实际处理结果获取
+            apkg_path=apkg_filename,
+            cards=[]
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
 
 
 @router.post("/start", response_model=ProcessResult)
@@ -66,13 +143,10 @@ async def start_processing(
             min_duration=min_duration
         )
 
-        # 这里简化处理，实际应该从处理结果中读取卡片数据
-        # 可以通过修改 process_cards 返回更多信息来实现
-
         return ProcessResult(
             success=True,
             message="处理完成",
-            cards_count=0,  # 需要从实际处理结果获取
+            cards_count=0,
             apkg_path=str(apkg_path),
             cards=[]
         )
@@ -84,7 +158,7 @@ async def start_processing(
 @router.get("/progress/{task_id}")
 async def get_progress(task_id: str):
     """
-    获取处理进度
+    获取处理进度（暂未实现）
 
     Args:
         task_id: 任务ID
@@ -92,10 +166,14 @@ async def get_progress(task_id: str):
     Returns:
         ProcessProgress: 当前处理进度
     """
-    if task_id not in processing_status:
-        raise HTTPException(status_code=404, detail="任务不存在")
-
-    return processing_status[task_id]
+    # TODO: 实现真正的进度跟踪
+    return {
+        "step": "processing",
+        "message": "处理中...",
+        "progress": 50,
+        "total_steps": 5,
+        "current_step": 3
+    }
 
 
 @router.post("/validate-api-key")

@@ -39,6 +39,32 @@ export const subtitleAPI = {
 
 // 处理相关 API
 export const processAPI = {
+  // 上传文件并处理
+  uploadAndProcess: async (
+    videoFile: File,
+    subtitleFile: File,
+    minDuration: number = 1.0,
+    outputDir: string = './output',
+    apiKey?: string
+  ): Promise<ProcessResult> => {
+    const formData = new FormData();
+    formData.append('video', videoFile);
+    formData.append('subtitle', subtitleFile);
+    formData.append('min_duration', minDuration.toString());
+    formData.append('output_dir', outputDir);
+    if (apiKey) {
+      formData.append('api_key', apiKey);
+    }
+
+    const response = await api.post<ProcessResult>('/api/process/upload-and-process', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    return response.data;
+  },
+
   // 开始处理
   start: async (
     videoPath: string,

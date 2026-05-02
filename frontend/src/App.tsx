@@ -74,59 +74,50 @@ function App() {
 
   // 处理选中的字幕
   const handleProcess = async () => {
-    if (!videoFile || selectedIndices.size === 0) return;
+    if (!videoFile || !subtitleFile) {
+      alert('请先上传视频和字幕文件');
+      return;
+    }
 
     setIsProcessing(true);
     setProcessingSteps(PROCESSING_STEPS);
 
     try {
-      // 模拟处理流程（实际应该调用后端 API）
-      const steps = ['upload', 'parse', 'ai', 'media', 'pack'];
-      for (let i = 0; i < steps.length; i++) {
-        setCurrentStep(i);
-        setProcessingSteps(s =>
-          s.map((step, idx) =>
-            idx === i
-              ? { ...step, status: 'processing' }
-              : idx < i
-              ? { ...step, status: 'completed' }
-              : { ...step, status: 'pending' }
-          )
-        );
+      setCurrentStep(0);
+      setProcessingSteps(s =>
+        s.map((step, idx) =>
+          idx === 0 ? { ...step, status: 'processing' } : { ...step, status: 'pending' }
+        )
+      );
 
-        // 模拟每个步骤的延迟
-        await new Promise(resolve => setTimeout(resolve, 1500));
+      // 调用后端 API 处理
+      const result = await processAPI.uploadAndProcess(
+        videoFile,
+        subtitleFile,
+        minDuration,
+        outputDir,
+        apiKey || undefined
+      );
+
+      if (result.success) {
+        setProcessingSteps(s => s.map(step => ({ ...step, status: 'completed' as const })));
+        setApkgPath(result.apkg_path);
+
+        // 由于后端暂时不返回卡片数据，显示一个占位提示
+        alert(`处理完成！生成了 ${result.cards_count} 张卡片。请点击下载按钮获取 .apkg 文件。`);
+      } else {
+        throw new Error(result.message);
       }
-
-      // 模拟生成结果
-      const mockCards: ProcessedCard[] = [
-        {
-          sentence: 'Hello, how are you?',
-          translation: '你好，你还好吗？',
-          notes: 'how are you: 常见问候语\nhello: 问候',
-          start_sec: 83.456,
-          end_sec: 85.789,
-        },
-        {
-          sentence: "I'm doing great, thanks for asking!",
-          translation: '我很好，谢谢你的关心！',
-          notes: "I'm: I am 的缩写\ndoing great: 表现很好\nthanks for asking: 谢谢关心",
-          start_sec: 86.123,
-          end_sec: 89.456,
-        },
-      ];
-
-      setResult(mockCards);
-      setApkgPath('./output/deck.apkg');
-
-      setProcessingSteps(s => s.map(step => ({ ...step, status: 'completed' as const })));
 
     } catch (error) {
       console.error('处理失败:', error);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      alert(`处理失败: ${errorMessage}`);
+
       setProcessingSteps(s =>
         s.map((step, i) =>
           step.status === 'processing'
-            ? { ...step, status: 'error', error: String(error) }
+            ? { ...step, status: 'error', error: errorMessage }
             : step
         )
       );
