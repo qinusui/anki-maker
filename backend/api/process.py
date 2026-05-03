@@ -19,12 +19,13 @@ from models.schemas import ProcessRequest, ProcessResult, ProcessedCard, Process
 
 # 导入现有模块
 import sys
-sys.path.append(str(Path(__file__).parent.parent.parent))
-import importlib.util
-spec = importlib.util.spec_from_file_location("main", str(Path(__file__).parent.parent.parent / "main.py"))
-main_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(main_module)
-process_cards = main_module.run
+if getattr(sys, 'frozen', False):
+    # PyInstaller 打包环境
+    sys.path.insert(0, sys._MEIPASS)
+else:
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from main import run as process_cards
 
 router = APIRouter()
 
@@ -48,7 +49,10 @@ def _translate_api_error(msg: str) -> str:
     return msg
 
 # 临时文件存储目录
-TEMP_DIR = Path(__file__).parent.parent.parent / "temp"
+if getattr(sys, 'frozen', False):
+    TEMP_DIR = Path(sys.executable).parent / "temp"
+else:
+    TEMP_DIR = Path(__file__).parent.parent.parent / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
 # 任务进度存储 (task_id -> progress dict)
@@ -236,7 +240,10 @@ async def cleanup_output(apkg_filename: str):
     """
     import shutil
 
-    output_dir = Path(__file__).parent.parent / "output"
+    if getattr(sys, 'frozen', False):
+        output_dir = Path(sys.executable).parent / "output"
+    else:
+        output_dir = Path(__file__).parent.parent / "output"
     cleaned = []
 
     # 删除 apkg 文件

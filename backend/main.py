@@ -3,6 +3,17 @@ Anki 卡片生成器 - FastAPI 后端服务
 提供 RESTful API 供前端调用
 """
 
+import sys
+from pathlib import Path
+
+# 检测是否在 PyInstaller 打包环境中运行
+if getattr(sys, 'frozen', False):
+    # PyInstaller 打包后的路径
+    BASE_DIR = Path(sys._MEIPASS)
+else:
+    # 正常 Python 运行的路径
+    BASE_DIR = Path(__file__).parent
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,7 +89,7 @@ def _shutdown_watcher():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 仅在 start-all.py 启动时（存在 PID 文件）且在真正服务进程（非 reloader）中启用
-    _pid_file = Path(__file__).parent / 'pids.json'
+    _pid_file = BASE_DIR / 'pids.json'
     if _pid_file.exists():
         _watcher_thread = threading.Thread(target=_shutdown_watcher, daemon=True)
         _watcher_thread.start()
@@ -102,17 +113,22 @@ app.add_middleware(
 )
 
 # 挂载静态文件目录
-static_dir = Path(__file__).parent / "static"
+static_dir = BASE_DIR / "static"
 static_dir.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # 挂载输出目录供下载和预览
-output_dir = Path(__file__).parent / "output"
+output_dir = BASE_DIR / "output"
 output_dir.mkdir(exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
 
-# 挂载前端构建产物（Docker 模式）
-frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+# 挂载前端构建产物
+if getattr(sys, 'frozen', False):
+    # PyInstaller 打包后，前端在 _internal/frontend/dist
+    frontend_dist = BASE_DIR / "frontend" / "dist"
+else:
+    # 正常运行时，前端在项目根目录的 frontend/dist
+    frontend_dist = BASE_DIR.parent / "frontend" / "dist"
 if frontend_dist.exists():
     app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="frontend-assets")
 
@@ -171,6 +187,6 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=not getattr(sys, 'frozen', False),
         log_level="info"
     )
