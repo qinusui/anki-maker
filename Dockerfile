@@ -1,0 +1,48 @@
+# 第一阶段：构建前端
+FROM node:18-alpine AS frontend-build
+
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
+# 第二阶段：后端 + 前端静态文件
+FROM python:3.11-slim
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制 Python 依赖文件
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制后端依赖
+COPY backend/requirements.txt ./backend/
+RUN pip install --no-cache-dir -r backend/requirements.txt
+
+# 复制后端代码
+COPY backend/ ./backend/
+
+# 复制核心模块
+COPY main.py parse_srt.py ai_process.py media_cut.py pack_apkg.py whisper_transcribe.py ocr_subtitle.py ./
+
+# 复制前端构建产物
+COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+
+# 创建输出目录
+RUN mkdir -p /app/output /app/temp
+
+# 暴露端口
+EXPOSE 8000
+
+# 设置环境变量
+ENV PYTHONUNBUFFERED=1
+
+# 启动后端
+CMD ["python", "backend/main.py"]

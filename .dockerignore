@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv
+venv
+
+# Node
+node_modules
+frontend/node_modules
+
+# IDE
+.vscode
+.idea
+
+# 输出文件
+output
+temp
+
+# 测试文件
+test*.py
+test*.mkv
+
+# 文档
+*.md
+LICENSE
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# 环境变量
+.env
+.env.*
+
+# Claude
+.claude

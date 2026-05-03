@@ -95,7 +95,7 @@ app = FastAPI(
 # CORS 配置
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -110,6 +110,11 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 output_dir = Path(__file__).parent / "output"
 output_dir.mkdir(exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
+
+# 挂载前端构建产物（Docker 模式）
+frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="frontend-assets")
 
 # 注册路由
 app.include_router(subtitles_router, prefix="/api/subtitles", tags=["subtitles"])
@@ -136,6 +141,10 @@ async def shutdown():
 
 @app.get("/")
 async def root():
+    # Docker 模式下返回前端页面
+    frontend_index = frontend_dist / "index.html"
+    if frontend_index.exists():
+        return FileResponse(frontend_index)
     return {
         "message": "Anki Card Generator API",
         "version": "1.0.0",

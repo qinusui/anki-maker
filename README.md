@@ -50,7 +50,32 @@ anki_maker/
 └── output/              # 命令行模式生成的牌组输出
 ```
 
-## 安装依赖
+## 快速开始（Docker）
+
+**一键启动，无需安装任何依赖：**
+
+```bash
+# 克隆项目
+git clone https://github.com/qinusui/anki-maker.git
+cd anki-maker
+
+# 启动服务
+docker-compose up -d
+
+# 打开浏览器访问
+# http://localhost:8000
+```
+
+**停止服务：**
+```bash
+docker-compose down
+```
+
+> 需要先安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+---
+
+## 手动安装
 
 ### Web 界面
 
