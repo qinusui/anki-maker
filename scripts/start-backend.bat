@@ -4,6 +4,9 @@ echo Anki Card Generator - Backend Server
 echo ========================================
 echo.
 
+REM 切换到项目根目录
+cd /d "%~dp0\.."
+
 REM Check if venv exists
 if not exist .venv\Scripts\activate.bat (
     echo ERROR: Virtual environment not found

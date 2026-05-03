@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 切换到项目根目录
+cd "$(dirname "$0")/.."
+
 echo "========================================"
 echo "Anki Card Generator - Backend Server"
 echo "========================================"

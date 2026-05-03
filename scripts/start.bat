@@ -4,6 +4,9 @@ echo Anki Card Generator - Start All
 echo ========================================
 echo.
 
+REM 切换到项目根目录
+cd /d "%~dp0\.."
+
 REM Check if venv exists
 if not exist .venv\Scripts\activate.bat (
     echo ERROR: Virtual environment not found
@@ -32,7 +35,7 @@ if errorlevel 1 (
 )
 
 REM Run start-all.py (handles everything else)
-python scripts/start-all.py
+python scripts\start-all.py
 
 deactivate
 exit

@@ -170,7 +170,7 @@ chmod +x start.sh
 
 Windows:
 ```bash
-.\start-backend.bat
+.\scripts\start-backend.bat
 ```
 
 或手动启动：
