@@ -121,13 +121,15 @@ export const SubtitleTable = ({
                   <span
                     className={cn(
                       'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
-                      rec.include
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                        : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                      rec.reason.startsWith('处理失败:')
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                        : rec.include
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
                     )}
                     title={rec.reason}
                   >
-                    {rec.include ? '推荐' : '跳过'}
+                    {rec.reason.startsWith('处理失败:') ? '失败' : rec.include ? '推荐' : '跳过'}
                   </span>
                 ) : (
                   <span className="text-xs text-gray-400">-</span>

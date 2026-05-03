@@ -123,6 +123,7 @@ function App() {
 
   // AI 推荐相关
   const [recommendations, setRecommendations] = useState<Map<number, AIRecommendation> | null>(null);
+  const [failedIndices, setFailedIndices] = useState<Set<number>>(new Set());
   const [isRecommending, setIsRecommending] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const transcribingRef = useRef(false);
@@ -470,6 +471,7 @@ function App() {
 
     setIsRecommending(true);
     setRecommendations(new Map());
+    setFailedIndices(new Set());
     setRecommendBatch(0);
     setRecommendTotalBatches(0);
 
@@ -501,11 +503,21 @@ function App() {
         }
       }
 
-      // 流结束后，自动选中推荐的句子
+      // 流结束后，收集失败项并自动选中推荐的句子
       setRecommendations(prev => {
         if (prev.size > 0) {
+          // 收集失败项
+          const failed = new Set<number>();
+          for (const [index, rec] of prev) {
+            if (rec.reason.startsWith('处理失败:')) {
+              failed.add(index);
+            }
+          }
+          setFailedIndices(failed);
+
+          // 自动选中推荐的句子（排除失败项）
           const recommendedIndices = Array.from(prev.values())
-            .filter(r => r.include)
+            .filter(r => r.include && !r.reason.startsWith('处理失败:'))
             .map(r => r.index);
           setSelectedIndices(new Set(recommendedIndices));
         }
@@ -526,6 +538,66 @@ function App() {
       .filter(r => r.include)
       .map(r => r.index);
     setSelectedIndices(new Set(recommendedIndices));
+  };
+
+  // 重试失败的批次
+  const handleRetryFailed = async () => {
+    if (!apiKey || failedIndices.size === 0) return;
+
+    const failedSubtitles = subtitles.filter(s => failedIndices.has(s.index));
+    if (failedSubtitles.length === 0) return;
+
+    setIsRecommending(true);
+    setFailedIndices(new Set());
+    setRecommendBatch(0);
+    setRecommendTotalBatches(0);
+
+    try {
+      const stream = subtitleAPI.startRecommendStream(
+        failedSubtitles,
+        apiKey,
+        customPrompt || undefined,
+        recommendBatchSize,
+        apiBase || undefined,
+        modelName || undefined
+      );
+
+      for await (const event of stream) {
+        if (event.type === 'start') {
+          setRecommendTotalBatches(event.total_batches!);
+        } else if (event.type === 'batch') {
+          setRecommendBatch(event.batch!);
+          setRecommendations(prev => {
+            const next = new Map(prev);
+            for (const item of event.items!) {
+              next.set(item.index, item);
+            }
+            return next;
+          });
+        } else if (event.type === 'done') {
+          setIsRecommending(false);
+        }
+      }
+
+      // 重试后更新失败列表
+      setRecommendations(prev => {
+        if (prev.size > 0) {
+          const failed = new Set<number>();
+          for (const [index, rec] of prev) {
+            if (rec.reason.startsWith('处理失败:')) {
+              failed.add(index);
+            }
+          }
+          setFailedIndices(failed);
+        }
+        return prev;
+      });
+
+    } catch (error) {
+      console.error('重试失败:', error);
+      alert('重试失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      setIsRecommending(false);
+    }
   };
 
   // 处理选中的字幕
@@ -1142,6 +1214,17 @@ function App() {
                       onClick={selectRecommended}
                     >
                       仅选推荐
+                    </Button>
+                  )}
+                  {failedIndices.size > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRetryFailed}
+                      disabled={isRecommending}
+                      className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    >
+                      重试失败 ({failedIndices.size})
                     </Button>
                   )}
                   <Button
