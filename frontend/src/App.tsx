@@ -754,6 +754,21 @@ function App() {
       } catch (e) {
         console.error('清理文件失败:', e);
       }
+
+      // 清理界面状态，方便继续处理下一个视频
+      setVideoFile(null);
+      setSubtitleFile(null);
+      setSubtitles([]);
+      setSelectedIndices(new Set());
+      setResult(null);
+      setApkgPath(null);
+      setRecommendations(null);
+      setFailedIndices(new Set());
+      setProcessingSteps(PROCESSING_STEPS);
+      setCurrentStep(-1);
+      setExtractedSource('');
+      transcribedVideoName.current = null;
+
     } catch (error) {
       console.error('下载失败:', error);
       alert('下载失败，请手动访问: /download/' + encodeURIComponent(apkgPath));
