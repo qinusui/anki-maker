@@ -24,30 +24,35 @@
 
 ```
 anki_maker/
-├── main.py              # 主程序入口（流程编排）
-├── parse_srt.py         # 字幕解析
-├── ai_process.py        # AI 批量处理
-├── media_cut.py         # ffmpeg 媒体切割
-├── pack_apkg.py         # Anki 打包
-├── whisper_transcribe.py # Whisper 自动转录
-├── ocr_subtitle.py      # OCR 硬字幕提取
-├── start-all.py         # 一键启动前后端
-├── requirements.txt      # Python 依赖
+├── core/                # 核心处理模块
+│   ├── __init__.py
+│   ├── parse_srt.py     # 字幕解析
+│   ├── ai_process.py    # AI 批量处理
+│   ├── media_cut.py     # ffmpeg 媒体切割
+│   ├── pack_apkg.py     # Anki 打包
+│   ├── whisper_transcribe.py  # Whisper 自动转录
+│   └── ocr_subtitle.py  # OCR 硬字幕提取
 ├── backend/             # FastAPI 后端（Web 界面）
-│   ├── main.py         # 后端入口
-│   ├── api/            # API 路由
+│   ├── main.py          # 后端入口
+│   ├── api/             # API 路由
 │   │   ├── subtitles.py # 字幕 / AI推荐 / 转录 / OCR
 │   │   ├── process.py   # 处理流程
 │   │   └── cards.py     # 卡片管理
-│   ├── models/         # 数据模型（Pydantic）
-│   └── output/         # 生成的牌组输出
+│   ├── models/          # 数据模型（Pydantic）
+│   └── output/          # 生成的牌组输出
 ├── frontend/            # React 前端（Web 界面）
 │   └── src/
 │       ├── components/  # UI 组件
 │       ├── services/    # API 调用
 │       └── App.tsx      # 主应用
-├── input/               # 放置视频和字幕文件
-└── output/              # 命令行模式生成的牌组输出
+├── scripts/             # 启动脚本
+│   └── start-all.py     # 一键启动前后端
+├── docs/                # 文档
+├── main.py              # CLI 主程序入口
+├── Dockerfile           # Docker 构建配置
+├── docker-compose.yml   # Docker 运行配置
+├── requirements.txt     # Python 依赖
+└── README.md
 ```
 
 ## 快速开始（Docker）
@@ -146,7 +151,7 @@ Windows:
 
 或使用 Python 脚本：
 ```bash
-python start-all.py
+python scripts/start-all.py
 ```
 
 Linux/Mac:

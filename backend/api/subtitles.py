@@ -20,8 +20,8 @@ from models.schemas import (
 # 导入现有的字幕解析模块
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from parse_srt import parse_srt, filter_short_subtitles
-from ocr_subtitle import detect_visible_subtitles, extract_hard_subtitles
+from core.parse_srt import parse_srt, filter_short_subtitles
+from core.ocr_subtitle import detect_visible_subtitles, extract_hard_subtitles
 
 router = APIRouter()
 
@@ -303,7 +303,7 @@ def _run_ocr_extract(task_id: str, video_path_str: str, lang: str,
             return
 
         # 转为标准 SRT 并解析
-        from whisper_transcribe import save_as_srt
+        from core.whisper_transcribe import save_as_srt
         save_as_srt(segments, srt_path_str)
 
         subtitles = parse_srt(srt_path_str)
@@ -663,7 +663,7 @@ def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, languag
     _sys.path.append(_PROJECT_ROOT)
 
     import whisper
-    from whisper_transcribe import save_as_srt
+    from core.whisper_transcribe import save_as_srt
 
     progress_pipe.send({"step": "loading", "message": f"加载 {model_name} 模型..."})
     model = whisper.load_model(model_name)

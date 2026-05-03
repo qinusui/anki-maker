@@ -32,7 +32,7 @@ if errorlevel 1 (
 )
 
 REM Run start-all.py (handles everything else)
-python start-all.py
+python scripts/start-all.py
 
 deactivate
 exit

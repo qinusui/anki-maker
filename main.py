@@ -8,10 +8,10 @@ import sys
 import json
 from pathlib import Path
 
-from parse_srt import parse_srt, filter_short_subtitles, Subtitle
-from ai_process import process_subtitles_with_ai
-from media_cut import process_media_items
-from pack_apkg import create_apkg
+from core.parse_srt import parse_srt, filter_short_subtitles, Subtitle
+from core.ai_process import process_subtitles_with_ai
+from core.media_cut import process_media_items
+from core.pack_apkg import create_apkg
 
 
 def run(
@@ -134,7 +134,7 @@ def run(
 
     if need_transcribe:
         print("[0/5] Whisper 自动转录...")
-        from whisper_transcribe import transcribe_video, save_as_srt
+        from core.whisper_transcribe import transcribe_video, save_as_srt
 
         segments = transcribe_video(
             str(video_path),

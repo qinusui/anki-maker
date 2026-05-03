@@ -30,7 +30,8 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ ./backend/
 
 # 复制核心模块
-COPY main.py parse_srt.py ai_process.py media_cut.py pack_apkg.py whisper_transcribe.py ocr_subtitle.py ./
+COPY core/ ./core/
+COPY main.py ./
 
 # 复制前端构建产物
 COPY --from=frontend-build /app/frontend/dist ./frontend/dist

@@ -16,7 +16,8 @@ def main():
     print("Anki 卡片生成器 - 一键启动")
     print("=" * 50)
 
-    root_dir = Path(__file__).parent
+    # 从 scripts/ 目录向上找到项目根目录
+    root_dir = Path(__file__).parent.parent
     backend_dir = root_dir / 'backend'
     frontend_dir = root_dir / 'frontend'
 
