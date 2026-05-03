@@ -15,7 +15,6 @@ a = Analysis(
     ],
     datas=[
         (frontend_dist, 'frontend/dist'),
-        ('backend/static', 'backend/static'),
         ('core', 'core'),
     ],
     hiddenimports=[
