@@ -9,7 +9,10 @@ frontend_dist = os.path.join(os.path.dirname(os.path.abspath(SPEC)), 'frontend',
 a = Analysis(
     ['backend/main.py'],
     pathex=['backend', '.'],
-    binaries=[],
+    binaries=[
+        ('bin/ffmpeg.exe', 'bin'),
+        ('bin/ffprobe.exe', 'bin'),
+    ],
     datas=[
         (frontend_dist, 'frontend/dist'),
         ('backend/static', 'backend/static'),

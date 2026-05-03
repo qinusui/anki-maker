@@ -30,11 +30,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: 安装依赖并打包
-        run: |
-          pip install pyinstaller openai genanki pysrt python-dotenv
-          pyinstaller anki-maker.spec --clean -y
-
       - name: 下载 ffmpeg
         run: |
           mkdir -p bin
@@ -42,6 +37,11 @@ jobs:
           Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
           copy ffmpeg_tmp\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe bin\
           copy ffmpeg_tmp\ffmpeg-master-latest-win64-gpl\bin\ffprobe.exe bin\
+
+      - name: 安装依赖并打包
+        run: |
+          pip install pyinstaller openai genanki pysrt python-dotenv
+          pyinstaller anki-maker.spec --clean -y
 
       - name: 测试程序启动
         run: |
