@@ -201,9 +201,12 @@ def process_media_items(
 
     # Step 1: 提取完整音轨（视频只解码一次）
     full_audio_path = str(audio_dir / "_full.mp3")
-    print(f"提取完整音轨...")
-    if not extract_full_audio(video_path, full_audio_path):
-        raise RuntimeError("提取音轨失败")
+    if Path(full_audio_path).exists() and Path(full_audio_path).stat().st_size > 0:
+        print(f"完整音轨已存在，跳过提取")
+    else:
+        print(f"提取完整音轨...")
+        if not extract_full_audio(video_path, full_audio_path):
+            raise RuntimeError("提取音轨失败")
 
     # Step 2: 并行逐条截图（-ss 在 -i 前，输入跳转快）
     print(f"截图 {len(items)} 帧，{num_workers} 并发...")
@@ -212,6 +215,8 @@ def process_media_items(
     def _ss_single(item):
         idx = item["index"]
         path = str(screenshot_dir / f"card_{idx:04d}.jpg")
+        if Path(path).exists() and Path(path).stat().st_size > 0:
+            return (idx, path)
         ok = capture_screenshot(video_path, item["snapshot_time"], path)
         return (idx, path) if ok else (idx, "")
 
@@ -232,6 +237,16 @@ def process_media_items(
 
         audio_path = str(audio_dir / f"card_{idx:04d}.mp3")
         screenshot_path = ss_map.get(idx, "")
+
+        # 如果音频文件已存在且非空，跳过切割
+        if Path(audio_path).exists() and Path(audio_path).stat().st_size > 0:
+            return MediaItem(
+                index=idx,
+                start_sec=item["start_sec"],
+                end_sec=item["end_sec"],
+                audio_path=audio_path,
+                screenshot_path=screenshot_path
+            )
 
         if cut_audio(full_audio_path, cut_start, cut_end, audio_path):
             return MediaItem(

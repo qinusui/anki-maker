@@ -5,6 +5,7 @@ Anki 卡片生成器 - 主程序
 
 import os
 import sys
+import json
 from pathlib import Path
 
 from parse_srt import parse_srt, filter_short_subtitles, Subtitle
@@ -63,6 +64,55 @@ def run(
     print("=" * 50)
     print("Anki 卡片生成器")
     print("=" * 50)
+
+    # 检查是否有 checkpoint 可以恢复
+    checkpoint_path = output_dir / "checkpoint.json"
+    if checkpoint_path.exists() and not pre_processed:
+        try:
+            with open(checkpoint_path, 'r', encoding='utf-8') as f:
+                checkpoint = json.load(f)
+            # 验证 checkpoint 与当前输入匹配
+            if (checkpoint.get("video_path") == str(video_path) and
+                checkpoint.get("subtitle_path") == str(subtitle_path)):
+                print(f"发现 checkpoint，从 Step 3 恢复...")
+                processed = checkpoint["processed"]
+                # 跳转到 Step 3
+                progress(3, f"切割音频和截图中 ({len(processed)} 个片段)...")
+                media_items = process_media_items(
+                    str(video_path),
+                    processed,
+                    str(output_dir),
+                    num_workers=num_workers,
+                    padding_start_ms=padding_start_ms,
+                    padding_end_ms=padding_end_ms
+                )
+                # 合并数据
+                for p, m in zip(processed, media_items):
+                    p["audio_path"] = m.audio_path
+                    p["screenshot_path"] = m.screenshot_path
+                progress(3, f"媒体处理完成")
+                # Step 4: 打包
+                progress(4, f"打包 Anki 牌组中 ({len(processed)} 张卡片)...")
+                audio_dir = output_dir / "audio"
+                screenshot_dir = output_dir / "screenshots"
+                apkg_path = create_apkg(
+                    video_path.stem,
+                    processed,
+                    str(output_dir),
+                    str(audio_dir),
+                    str(screenshot_dir)
+                )
+                # 完成
+                print("\n[5/5] 完成!")
+                print(f"牌组文件: {apkg_path}")
+                print(f"卡片数量: {len(processed)}")
+                return {
+                    "apkg_path": str(apkg_path),
+                    "cards_count": len(processed),
+                    "processed": processed
+                }
+        except Exception as e:
+            print(f"Checkpoint 加载失败，从头开始: {e}")
 
     # Step 0: 检查是否需要转录
     need_transcribe = force_transcribe or (subtitle_path is None or not subtitle_path.exists())
@@ -138,6 +188,22 @@ def run(
                     "reason": ""
                 })
             progress(2, f"跳过 AI 注释（未配置 API Key），共 {len(processed)} 条")
+
+    # 保存 checkpoint（processed 数据）
+    checkpoint_path = output_dir / "checkpoint.json"
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(checkpoint_path, 'w', encoding='utf-8') as f:
+        json.dump({
+            "video_path": str(video_path),
+            "subtitle_path": str(subtitle_path),
+            "processed": processed,
+            "params": {
+                "min_duration": min_duration,
+                "padding_start_ms": padding_start_ms,
+                "padding_end_ms": padding_end_ms
+            }
+        }, f, ensure_ascii=False, indent=2)
+    print(f"Checkpoint 已保存: {checkpoint_path}")
 
     # Step 3: 媒体处理
     progress(3, f"切割音频和截图中 ({len(processed)} 个片段)...")
