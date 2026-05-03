@@ -45,3 +45,7 @@ backend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# 项目文档（不上传）
+CLAUDE.md
+待办事项.md
