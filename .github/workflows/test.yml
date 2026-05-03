@@ -19,8 +19,8 @@ jobs:
           node-version: "20"
 
       - name: 构建前端
+        working-directory: frontend
         run: |
-          cd frontend
           npm install
           npm run build
 
