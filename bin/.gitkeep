@@ -1,0 +1,4 @@
+# 此目录用于存放 ffmpeg 二进制文件
+# 请从 https://github.com/BtbN/FFmpeg-Builds/releases 下载
+# 选择 ffmpeg-master-latest-win64-gpl.zip
+# 解压后将 ffmpeg.exe 和 ffprobe.exe 放入此目录

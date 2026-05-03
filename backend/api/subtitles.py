@@ -21,6 +21,7 @@ from models.schemas import (
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from core.parse_srt import parse_srt, filter_short_subtitles
+from core.whisper_manager import is_whisper_installed, install_whisper
 
 router = APIRouter()
 
@@ -496,11 +497,13 @@ def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, languag
     import sys as _sys
     _sys.path.append(_PROJECT_ROOT)
 
-    import whisper
+    from core.whisper_manager import load_model
     from core.whisper_transcribe import save_as_srt
 
     progress_pipe.send({"step": "loading", "message": f"加载 {model_name} 模型..."})
-    model = whisper.load_model(model_name)
+    model = load_model(model_name)
+    if model is None:
+        raise RuntimeError("Whisper 未安装，请先安装 Whisper")
 
     progress_pipe.send({"step": "transcribing", "message": "转录中..."})
     result = model.transcribe(
@@ -617,6 +620,28 @@ def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
             Path(result_json_path).unlink(missing_ok=True)
 
 
+@router.get("/whisper/status")
+async def whisper_status():
+    """检查 Whisper 是否已安装"""
+    return {"installed": is_whisper_installed()}
+
+
+@router.post("/whisper/install")
+async def whisper_install():
+    """
+    安装 Whisper（CPU 版本，约 200MB）
+    首次使用语音转录功能时调用
+    """
+    if is_whisper_installed():
+        return {"status": "already_installed", "message": "Whisper 已安装"}
+
+    success = install_whisper()
+    if success:
+        return {"status": "success", "message": "Whisper 安装成功"}
+    else:
+        raise HTTPException(status_code=500, detail="Whisper 安装失败，请检查网络连接")
+
+
 @router.post("/transcribe")
 async def transcribe_video_endpoint(
     video: UploadFile = File(...),
@@ -627,6 +652,13 @@ async def transcribe_video_endpoint(
     """
     使用 Whisper 将视频转录为字幕（后台异步，通过 progress 端点轮询）
     """
+    # 检查 Whisper 是否已安装
+    if not is_whisper_installed():
+        raise HTTPException(
+            status_code=400,
+            detail="Whisper 未安装，请先调用 POST /api/subtitles/whisper/install 安装"
+        )
+
     if not video.filename:
         raise HTTPException(status_code=400, detail="未提供视频文件")
 

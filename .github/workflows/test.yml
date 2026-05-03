@@ -1,0 +1,43 @@
+name: 测试安装包
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  test:
+    runs-on: windows-latest   # 微软提供的干净 Windows 11 环境
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 安装依赖并打包
+        run: |
+          pip install pyinstaller openai genanki pysrt python-dotenv
+          pyinstaller anki-maker.spec --clean -y
+
+      - name: 下载 ffmpeg
+        run: |
+          mkdir -p bin
+          curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -o ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
+          copy ffmpeg_tmp\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe bin\
+          copy ffmpeg_tmp\ffmpeg-master-latest-win64-gpl\bin\ffprobe.exe bin\
+
+      - name: 测试程序启动
+        run: |
+          dist\anki-maker\anki-maker.exe --version
+
+      - name: 上传打包产物为 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AnkiMaker
+          path: dist\anki-maker\
+          retention-days: 7     # 保留 7 天

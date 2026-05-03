@@ -8,6 +8,11 @@ import sys
 import json
 from pathlib import Path
 
+# 处理 --version 参数（在导入模块之前，避免依赖问题）
+if "--version" in sys.argv:
+    print("AnkiMaker 1.0")
+    sys.exit(0)
+
 from core.parse_srt import parse_srt, filter_short_subtitles, Subtitle
 from core.ai_process import process_subtitles_with_ai
 from core.media_cut import process_media_items
@@ -134,13 +139,26 @@ def run(
 
     if need_transcribe:
         print("[0/5] Whisper 自动转录...")
-        from core.whisper_transcribe import transcribe_video, save_as_srt
+        from core.whisper_manager import is_whisper_installed, get_whisper
 
-        segments = transcribe_video(
+        if not is_whisper_installed():
+            raise RuntimeError(
+                "Whisper 未安装。请运行以下命令安装：\n"
+                "pip install openai-whisper --index-url https://download.pytorch.org/whl/cpu"
+            )
+
+        whisper = get_whisper()
+        from core.whisper_transcribe import save_as_srt
+
+        model = whisper.load_model(whisper_model)
+        result = model.transcribe(
             str(video_path),
-            model_name=whisper_model,
-            language=language
+            language=language,
+            word_timestamps=True,
+            verbose=False
         )
+        segments = [{"start": s["start"], "end": s["end"], "text": s["text"].strip()}
+                     for s in result.get("segments", [])]
         print(f"  转录完成，共 {len(segments)} 段")
 
         # 保存为 SRT 供后续使用
