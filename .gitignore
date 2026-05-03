@@ -54,5 +54,5 @@ CLAUDE.md
 dist/
 dist2/
 dist3/
+dist4/
 build/
-*.spec
