@@ -67,6 +67,8 @@ def run(
 
     # 检查是否有 checkpoint 可以恢复
     checkpoint_path = output_dir / "checkpoint.json"
+    resume_from_checkpoint = False
+
     if checkpoint_path.exists() and not pre_processed:
         try:
             with open(checkpoint_path, 'r', encoding='utf-8') as f:
@@ -76,6 +78,7 @@ def run(
                 checkpoint.get("subtitle_path") == str(subtitle_path)):
                 print(f"发现 checkpoint，从 Step 3 恢复...")
                 processed = checkpoint["processed"]
+                resume_from_checkpoint = True
                 # 跳转到 Step 3
                 progress(3, f"切割音频和截图中 ({len(processed)} 个片段)...")
                 media_items = process_media_items(
@@ -113,6 +116,18 @@ def run(
                 }
         except Exception as e:
             print(f"Checkpoint 加载失败，从头开始: {e}")
+
+    # 如果不是从 checkpoint 恢复，清理旧的媒体文件
+    if not resume_from_checkpoint:
+        import shutil
+        audio_dir = output_dir / "audio"
+        screenshot_dir = output_dir / "screenshots"
+        if audio_dir.exists():
+            shutil.rmtree(audio_dir)
+            print(f"已清理旧音频目录: {audio_dir}")
+        if screenshot_dir.exists():
+            shutil.rmtree(screenshot_dir)
+            print(f"已清理旧截图目录: {screenshot_dir}")
 
     # Step 0: 检查是否需要转录
     need_transcribe = force_transcribe or (subtitle_path is None or not subtitle_path.exists())
