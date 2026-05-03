@@ -47,9 +47,14 @@ jobs:
         run: |
           dist\anki-maker\anki-maker.exe --version
 
-      - name: 上传打包产物为 Artifact
+      - name: 编译安装包
+        run: |
+          choco install innosetup -y
+          iscc installer.iss
+
+      - name: 上传安装包
         uses: actions/upload-artifact@v4
         with:
-          name: AnkiMaker
-          path: dist\anki-maker\
+          name: AnkiMaker_Setup
+          path: installer\AnkiMaker_Setup.exe
           retention-days: 7     # 保留 7 天
