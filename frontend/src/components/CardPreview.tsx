@@ -81,10 +81,10 @@ export const CardPreview = ({ cards, currentIndex, onPrevious, onNext }: CardPre
             <img
               src={card.screenshot_path}
               alt="截图"
-              className="w-full max-w-xs mx-auto mb-4 rounded-lg object-cover"
+              className="w-full max-w-md mx-auto mb-4 rounded-lg object-cover"
             />
           ) : (
-            <div className="w-32 h-20 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center dark:bg-gray-700">
+            <div className="w-48 h-32 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center dark:bg-gray-700">
               <ImageIcon className="w-8 h-8 text-gray-400" />
             </div>
           )}
