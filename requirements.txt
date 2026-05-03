@@ -3,7 +3,3 @@ genanki>=0.13.0
 pysrt>=1.1.2
 python-dotenv>=1.0.0
 openai-whisper>=20231117
-# OCR 硬字幕提取（可选）
-opencv-python>=4.8.0
-paddlepaddle>=3.0.0
-paddleocr>=2.7.0

@@ -178,52 +178,6 @@ export const subtitleAPI = {
     return response.data;
   },
 
-  // 检测视频是否有可见硬字幕
-  detectVisibleSubs: async (video: File): Promise<{ has_visible_subtitles: boolean; message?: string }> => {
-    const formData = new FormData();
-    formData.append('video', video);
-    const response = await api.post<{ has_visible_subtitles: boolean; message?: string }>(
-      '/api/subtitles/detect-visible-subs',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000 }
-    );
-    return response.data;
-  },
-
-  // OCR 提取硬字幕：启动任务
-  startOcrExtract: async (
-    video: File,
-    lang: string = 'ch',
-    confThreshold: number = 1.0,
-    minDuration: number = 1.0
-  ): Promise<{ task_id: string; status: string }> => {
-    const formData = new FormData();
-    formData.append('video', video);
-    const params = new URLSearchParams();
-    params.append('lang', lang);
-    params.append('conf_threshold', confThreshold.toString());
-    params.append('min_duration', minDuration.toString());
-
-    const response = await api.post<{ task_id: string; status: string }>(
-      `/api/subtitles/ocr-extract?${params.toString()}`,
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 }
-    );
-    return response.data;
-  },
-
-  // OCR 提取：获取进度
-  getOcrProgress: async (taskId: string) => {
-    const response = await api.get(`/api/subtitles/ocr-extract/progress/${taskId}`);
-    return response.data as {
-      status: string;
-      step: number;
-      total_steps: number;
-      message: string;
-      error?: string;
-      result?: SubtitleListResponse & { source: string };
-    };
-  },
 };
 
 // 处理相关 API

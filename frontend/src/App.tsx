@@ -129,11 +129,6 @@ function App() {
   const [transcribeMessage, setTranscribeMessage] = useState('');
   const [transcribeAnimProgress, setTranscribeAnimProgress] = useState(0);
   const transcribeAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // OCR 提取状态
-  const [isOcrExtracting, setIsOcrExtracting] = useState(false);
-  const [ocrStep, setOcrStep] = useState(0);
-  const [ocrMessage, setOcrMessage] = useState('');
-  const ocrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recommendBatch, setRecommendBatch] = useState(0);
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState<string>(DEFAULT_RECOMMEND_PROMPT);
@@ -162,10 +157,7 @@ function App() {
     localStorage.setItem('anki_ai_config', JSON.stringify({ apiBase, modelName, apiKey }));
   }, [apiBase, modelName, apiKey]);
 
-  // 转录/OCR 进度动画
-  const [ocrAnimProgress, setOcrAnimProgress] = useState(0);
-  const ocrAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
+  // 转录进度动画
   useEffect(() => {
     const stepBase = [0, 10, 30, 100];
 
@@ -194,42 +186,6 @@ function App() {
       if (transcribeAnimRef.current) clearInterval(transcribeAnimRef.current);
     };
   }, [isTranscribing, transcribeStep]);
-
-  useEffect(() => {
-    const stepBase = [0, 10, 50, 100];
-
-    if (!isOcrExtracting) {
-      setOcrAnimProgress(0);
-      if (ocrAnimRef.current) clearInterval(ocrAnimRef.current);
-      return;
-    }
-
-    const base = stepBase[ocrStep] || 0;
-    setOcrAnimProgress(base);
-
-    if (ocrStep === 1) {
-      ocrAnimRef.current = setInterval(() => {
-        setOcrAnimProgress(prev => {
-          if (prev < 50) return 50;
-          if (prev >= 94) return 94;
-          return Math.min(94, prev + 0.4);
-        });
-      }, 1000);
-    } else {
-      if (ocrAnimRef.current) clearInterval(ocrAnimRef.current);
-    }
-
-    return () => {
-      if (ocrAnimRef.current) clearInterval(ocrAnimRef.current);
-    };
-  }, [isOcrExtracting, ocrStep]);
-
-  // 清理所有轮询
-  useEffect(() => {
-    return () => {
-      if (ocrPollRef.current) clearInterval(ocrPollRef.current);
-    };
-  }, []);
 
   // 测试 AI 连接
   const handleTestConnection = async () => {
@@ -264,7 +220,7 @@ function App() {
     { key: 'large', label: 'large',  size: '~2.9 GB', speed: '最慢，精度最高' },
   ];
 
-  // 生成字幕 — 方案链：软字幕 > OCR 硬字幕 > Whisper 转录
+  // 生成字幕 — 方案链：软字幕 > Whisper 转录
   const handleTranscribe = async () => {
     if (!videoFile || transcribingRef.current) return;
     if (transcribedVideoName.current === videoFile.name) return;
@@ -273,7 +229,7 @@ function App() {
     setExtractedSource('');
 
     try {
-      // 第一优先：提取内嵌软字幕
+      // 优先提取内嵌软字幕
       const result = await subtitleAPI.extractEmbeddedSubs(videoFile, 0, minDuration);
 
       if (result.found && result.extracted) {
@@ -286,20 +242,7 @@ function App() {
         return;
       }
 
-      // 第二优先：检测可见硬字幕 → OCR 识别
-      if (!result.found || !result.extracted) {
-        setCheckingEmbedded(false);
-        try {
-          const detectResult = await subtitleAPI.detectVisibleSubs(videoFile);
-          if (detectResult.has_visible_subtitles) {
-            // 启动 OCR 提取（异步轮询）
-            await startOcrExtract();
-            return;
-          }
-        } catch (_) {
-          // 检测失败，继续走 Whisper
-        }
-      } else if (result.found && !result.extracted) {
+      if (result.found && !result.extracted) {
         alert(result.message);
       }
     } catch (e) {
@@ -308,55 +251,6 @@ function App() {
 
     setCheckingEmbedded(false);
     setShowModelPicker(true);
-  };
-
-  // OCR 提取硬字幕
-  const startOcrExtract = async () => {
-    if (!videoFile) return;
-
-    setIsOcrExtracting(true);
-    setOcrStep(0);
-    setOcrMessage('准备 OCR 识别...');
-
-    try {
-      const { task_id } = await subtitleAPI.startOcrExtract(videoFile, 'ch', 1.0, minDuration);
-
-      const pollInterval = setInterval(async () => {
-        try {
-          const progress = await subtitleAPI.getOcrProgress(task_id);
-
-          setOcrStep(progress.step);
-          setOcrMessage(progress.message);
-
-          if (progress.status === 'completed' && progress.result) {
-            clearInterval(pollInterval);
-            setIsOcrExtracting(false);
-
-            setSubtitles(progress.result.subtitles as SubtitleItem[]);
-            setSelectedIndices(new Set(progress.result.subtitles.map((s: SubtitleItem) => s.index)));
-            setRecommendations(null);
-            transcribedVideoName.current = videoFile.name;
-            setExtractedSource(`OCR 硬字幕识别（${progress.result.filtered} 条）`);
-          }
-
-          if (progress.status === 'error') {
-            clearInterval(pollInterval);
-            setIsOcrExtracting(false);
-            // OCR 失败，降级到 Whisper
-            setShowModelPicker(true);
-          }
-        } catch (_) {
-          // 轮询失败不中断
-        }
-      }, 1000);
-
-      ocrPollRef.current = pollInterval;
-
-    } catch (error) {
-      console.error('OCR 提取失败:', error);
-      setIsOcrExtracting(false);
-      setShowModelPicker(true);
-    }
   };
 
   // 确认模型后开始转录
@@ -920,9 +814,9 @@ function App() {
                 <div className="lg:col-span-2 space-y-4">
                   <FileUpload
                     accept=".mp4,.mkv,.avi,.mov,.webm"
-                    onFileSelect={(f) => { setVideoFile(f); transcribedVideoName.current = null; setExtractedSource(''); setIsOcrExtracting(false); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
+                    onFileSelect={(f) => { setVideoFile(f); transcribedVideoName.current = null; setExtractedSource(''); }}
                     selectedFile={videoFile}
-                    onClear={() => { setVideoFile(null); transcribedVideoName.current = null; setExtractedSource(''); setIsOcrExtracting(false); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
+                    onClear={() => { setVideoFile(null); transcribedVideoName.current = null; setExtractedSource(''); }}
                     label="视频文件"
                     icon="video"
                   />
@@ -951,7 +845,7 @@ function App() {
                           <span className="flex-1">{extractedSource}</span>
                           <button
                             className="text-xs text-gray-500 underline hover:text-gray-700 shrink-0 dark:text-gray-400 dark:hover:text-gray-200"
-                            onClick={() => { setExtractedSource(''); setIsOcrExtracting(false); setShowModelPicker(true); if (ocrPollRef.current) clearInterval(ocrPollRef.current); }}
+                            onClick={() => { setExtractedSource(''); setShowModelPicker(true); }}
                           >
                             改用 Whisper 转录
                           </button>
@@ -960,31 +854,17 @@ function App() {
                       {/* 未提取时显示生成按钮或进度 */}
                       {!extractedSource && (
                         <>
-                          {!isOcrExtracting && (
-                            <Button
-                              variant="primary"
-                              className="w-full"
-                              onClick={handleTranscribe}
-                              disabled={!videoFile || isProcessing || isTranscribing || checkingEmbedded || isOcrExtracting}
-                            >
-                              {checkingEmbedded ? '检测字幕中...' : isTranscribing ? '转录中...' : '生成字幕'}
-                            </Button>
-                          )}
-                          {/* OCR 进度条 */}
-                          {isOcrExtracting && (
-                            <div className="space-y-1">
-                              <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-600">
-                                <div
-                                  className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                  style={{ width: `${ocrAnimProgress}%` }}
-                                />
-                              </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">{ocrMessage}</p>
-                            </div>
-                          )}
+                          <Button
+                            variant="primary"
+                            className="w-full"
+                            onClick={handleTranscribe}
+                            disabled={!videoFile || isProcessing || isTranscribing || checkingEmbedded}
+                          >
+                            {checkingEmbedded ? '检测字幕中...' : isTranscribing ? '转录中...' : '生成字幕'}
+                          </Button>
                         </>
                       )}
-                      {showModelPicker && !isTranscribing && !isOcrExtracting && (
+                      {showModelPicker && !isTranscribing && (
                         <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3 dark:border-gray-600 dark:bg-gray-800">
                           <p className="text-sm font-medium text-gray-700 dark:text-gray-300">选择 Whisper 模型（首次使用会自动下载）</p>
                           <div className="space-y-2">
