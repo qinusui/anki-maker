@@ -39,9 +39,7 @@ type StepStatus = 'pending' | 'processing' | 'completed' | 'error';
 type ProcessingStep = { id: string; label: string; status: StepStatus; error?: string };
 
 const PROCESSING_STEPS: ProcessingStep[] = [
-  { id: 'upload', label: '上传文件', status: 'pending' },
   { id: 'parse', label: '解析字幕', status: 'pending' },
-  { id: 'ai', label: 'AI 智能注释', status: 'pending' },
   { id: 'media', label: '切割音频与截图', status: 'pending' },
   { id: 'pack', label: '打包 Anki 牌组', status: 'pending' },
 ];
@@ -659,14 +657,17 @@ function App() {
         try {
           const progress = await processAPI.getProgress(task_id);
 
-          // 更新步骤状态
-          setCurrentStep(progress.step);
+          // 更新步骤状态（后端 step 1-4 映射到前端 index 0-2）
+          // 后端: 1=解析, 2=AI注释(跳过), 3=媒体切割, 4=打包
+          // 前端: 0=解析, 1=媒体切割, 2=打包
+          const stepIndex = progress.step <= 1 ? 0 : progress.step - 2;
+          setCurrentStep(stepIndex);
           setProcessingSteps(steps => {
             const newSteps = [...steps];
             for (let i = 0; i < newSteps.length; i++) {
-              if (i < progress.step) {
+              if (i < stepIndex) {
                 newSteps[i] = { ...newSteps[i], status: 'completed' as const };
-              } else if (i === progress.step) {
+              } else if (i === stepIndex) {
                 newSteps[i] = { ...newSteps[i], status: 'processing' as const };
               }
             }
