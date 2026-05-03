@@ -32,7 +32,7 @@ jobs:
 
       - name: 下载 ffmpeg
         run: |
-          mkdir -p bin
+          if (!(Test-Path bin)) { New-Item -ItemType Directory -Path bin }
           curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -o ffmpeg.zip
           Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_tmp
           copy ffmpeg_tmp\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe bin\
