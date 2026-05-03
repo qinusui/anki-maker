@@ -783,18 +783,25 @@ function App() {
               {helpTab === 'basic' ? (
                 <ol className="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
                   <li>上传视频文件（.mp4 / .mkv / .avi）和字幕文件（.srt），或点击「生成字幕」自动转录</li>
-                  <li>在配置区填写 API 地址、Key 和模型名称，点击「测试连接」验证</li>
-                  <li>勾选目标句子，选择提示词预设，点击「AI 推荐」智能分析</li>
-                  <li>确认选中句子后点击「开始处理」，等待生成卡片</li>
+                  <li>勾选目标句子，点击「开始处理」等待生成卡片</li>
                   <li>预览卡片，下载 .apkg 文件导入 Anki</li>
                 </ol>
               ) : (
                 <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
                   <div>
-                    <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">AI 配置</h4>
+                    <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">基础功能（无需 AI）</h4>
                     <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>上传视频和字幕，手动勾选句子即可生成卡片</li>
+                      <li>卡片包含：原文、对应音频片段和视频截图</li>
+                      <li>可调整最短时长、音频头尾 padding 等参数</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">AI 进阶功能（可选）</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>配置 AI 后可使用「AI 推荐」智能筛选有学习价值的句子</li>
+                      <li>AI 自动翻译并生成词汇注释，卡片额外包含中文翻译和知识点</li>
                       <li>支持 OpenAI / DeepSeek / Ollama 等兼容接口</li>
-                      <li>填写 API 地址、模型名称、API Key 后可用「测试连接」验证</li>
                       <li>配置自动保存到浏览器，刷新无需重新填写</li>
                     </ul>
                   </div>
@@ -807,17 +814,8 @@ function App() {
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">AI 推荐</h4>
-                    <ul className="list-disc list-inside space-y-1 ml-2">
-                      <li>仅分析已勾选的句子，支持分批次处理（1-100 条/批）</li>
-                      <li>内置「语法句型」和「背单词」两种预设，可自由修改提示词</li>
-                      <li>推荐结果绿色高亮，点击「仅选推荐」一键筛选</li>
-                    </ul>
-                  </div>
-                  <div>
                     <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">卡片生成</h4>
                     <ul className="list-disc list-inside space-y-1 ml-2">
-                      <li>每张卡片包含：原文、中文翻译、知识点注释、对应音频片段和视频截图</li>
                       <li>音频切割有 ±0.2s padding，先整体提取音轨再切片，高效不突兀</li>
                       <li>支持预览前后翻页，下载 .apkg 后导入 Anki 即可背诵</li>
                     </ul>
