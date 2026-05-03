@@ -18,6 +18,13 @@ a = Analysis(
         ('core', 'core'),
     ],
     hiddenimports=[
+        'fastapi',
+        'fastapi.staticfiles',
+        'starlette',
+        'starlette.routing',
+        'starlette.responses',
+        'starlette.middleware',
+        'starlette.middleware.cors',
         'api',
         'api.subtitles',
         'api.process',
