@@ -115,17 +115,29 @@ def run(
             })
         progress(2, f"使用 AI 推荐结果，共 {len(processed)} 条")
     else:
-        progress(2, f"AI 注释 {len(subtitles)} 条字幕中...")
         api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
-        if not api_key:
-            raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或传入 api_key")
+        if api_key:
+            progress(2, f"AI 注释 {len(subtitles)} 条字幕中...")
+            processed = process_subtitles_with_ai(subtitles, api_key, api_base, model_name)
 
-        processed = process_subtitles_with_ai(subtitles, api_key, api_base, model_name)
-
-        if not processed:
-            raise ValueError("AI 处理后没有保留的字幕")
-        progress(2, f"AI 处理完成，保留 {len(processed)} 条有价值内容",
-                 {"retained": len(processed)})
+            if not processed:
+                raise ValueError("AI 处理后没有保留的字幕")
+            progress(2, f"AI 处理完成，保留 {len(processed)} 条有价值内容",
+                     {"retained": len(processed)})
+        else:
+            # 无 API Key 时跳过 AI，使用空翻译/注释
+            processed = []
+            for sub in subtitles:
+                processed.append({
+                    "index": sub.index,
+                    "start_sec": sub.start_sec,
+                    "end_sec": sub.end_sec,
+                    "text": sub.text,
+                    "translation": "",
+                    "notes": "",
+                    "reason": ""
+                })
+            progress(2, f"跳过 AI 注释（未配置 API Key），共 {len(processed)} 条")
 
     # Step 3: 媒体处理
     progress(3, f"切割音频和截图中 ({len(processed)} 个片段)...")

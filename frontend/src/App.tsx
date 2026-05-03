@@ -553,22 +553,20 @@ function App() {
     const selectedSubtitleBlob = new Blob([srtContent], { type: 'text/plain' });
     const selectedSubtitleFile = new File([selectedSubtitleBlob], 'selected_subtitles.srt', { type: 'text/plain' });
 
-    // 如果有 AI 推荐结果，构建预处理数据（跳过后端 AI 步骤）
-    let preProcessed: object[] | undefined;
-    if (recommendations) {
-      preProcessed = subtitles
-        .filter(s => selectedIndices.has(s.index))
-        .map(s => {
-          const rec = recommendations.get(s.index);
-          return {
-            index: s.index,
-            text: s.text,
-            translation: rec?.translation || '',
-            notes: rec?.notes || '',
-            reason: rec?.reason || ''
-          };
-        });
-    }
+    // 构建预处理数据
+    // 有 AI 推荐时使用推荐结果，无推荐时使用空翻译/注释（跳过后端 AI 步骤）
+    const preProcessed = subtitles
+      .filter(s => selectedIndices.has(s.index))
+      .map(s => {
+        const rec = recommendations?.get(s.index);
+        return {
+          index: s.index,
+          text: s.text,
+          translation: rec?.translation || '',
+          notes: rec?.notes || '',
+          reason: rec?.reason || ''
+        };
+      });
 
     try {
       // 1. 上传并启动后台处理
@@ -961,6 +959,48 @@ function App() {
                       )}
                     </div>
                   )}
+                  {/* 字幕处理配置 */}
+                  <div className="p-4 bg-gray-50 rounded-lg space-y-3 dark:bg-gray-800">
+                    <div className="text-xs font-medium text-gray-600 dark:text-gray-400">字幕处理配置</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">最短时长(s)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="5"
+                          value={minDuration}
+                          onChange={(e) => setMinDuration(parseFloat(e.target.value))}
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">开头提前(ms)</label>
+                        <input
+                          type="number"
+                          step="100"
+                          min="100"
+                          max="1000"
+                          value={paddingStartMs}
+                          onChange={(e) => setPaddingStartMs(parseInt(e.target.value) || 200)}
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">结尾延后(ms)</label>
+                        <input
+                          type="number"
+                          step="100"
+                          min="100"
+                          max="1000"
+                          value={paddingEndMs}
+                          onChange={(e) => setPaddingEndMs(parseInt(e.target.value) || 200)}
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 右侧：AI 配置 */}
@@ -999,44 +1039,6 @@ function App() {
                           value={modelName}
                           onChange={(e) => setModelName(e.target.value)}
                           placeholder="deepseek-chat"
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">最短时长(s)</label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0.5"
-                            max="5"
-                            value={minDuration}
-                            onChange={(e) => setMinDuration(parseFloat(e.target.value))}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">开头提前(ms)</label>
-                          <input
-                            type="number"
-                            step="100"
-                            min="100"
-                            max="1000"
-                            value={paddingStartMs}
-                            onChange={(e) => setPaddingStartMs(parseInt(e.target.value) || 200)}
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">结尾延后(ms)</label>
-                        <input
-                          type="number"
-                          step="100"
-                          min="100"
-                          max="1000"
-                          value={paddingEndMs}
-                          onChange={(e) => setPaddingEndMs(parseInt(e.target.value) || 200)}
                           className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         />
                       </div>

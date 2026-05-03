@@ -1,5 +1,9 @@
-# 要求
-- 每次解决一个bug或增加了新的功能后，请将代码上传到https://github.com/qinusui/anki-maker，并撰写详细的改动说明。
-- 更新内容README.md（如果有）更新内容.gitignore （如果有）
+## graphify
 
+This project has a graphify knowledge graph at graphify-out/.
 
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
