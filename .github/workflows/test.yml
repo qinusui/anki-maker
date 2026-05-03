@@ -13,6 +13,17 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 构建前端
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
       - name: 安装 Python
         uses: actions/setup-python@v5
         with:
