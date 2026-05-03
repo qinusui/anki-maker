@@ -40,7 +40,7 @@ jobs:
 
       - name: 安装依赖并打包
         run: |
-          pip install pyinstaller openai genanki pysrt python-dotenv
+          pip install pyinstaller fastapi uvicorn openai genanki pysrt python-dotenv python-multipart
           pyinstaller anki-maker.spec --clean -y
 
       - name: 测试程序启动
