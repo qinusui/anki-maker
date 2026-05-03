@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Film, Download, Settings, Info, Sparkles, ChevronDown, ChevronUp, MessageSquare, Sun, Moon, Monitor } from 'lucide-react';
+import { Film, Download, Info, Sparkles, ChevronDown, ChevronUp, MessageSquare, Sun, Moon, Monitor } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/Card';
-import { Input } from './components/Input';
 import { ProgressBar } from './components/ProgressBar';
 import { FileUpload } from './components/FileUpload';
 import { SubtitleTable } from './components/SubtitleTable';
@@ -99,7 +98,6 @@ function App() {
   const [whisperModel, setWhisperModel] = useState('base');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [checkingEmbedded, setCheckingEmbedded] = useState(false);
-  const [embeddedStreams, setEmbeddedStreams] = useState<Array<{ index: number; codec: string; language: string; title: string; text_based: boolean }>>([]);
   const [extractedSource, setExtractedSource] = useState('');
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -134,7 +132,6 @@ function App() {
   // OCR 提取状态
   const [isOcrExtracting, setIsOcrExtracting] = useState(false);
   const [ocrStep, setOcrStep] = useState(0);
-  const [ocrTotalSteps, setOcrTotalSteps] = useState(3);
   const [ocrMessage, setOcrMessage] = useState('');
   const ocrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recommendBatch, setRecommendBatch] = useState(0);
@@ -273,13 +270,11 @@ function App() {
     if (transcribedVideoName.current === videoFile.name) return;
 
     setCheckingEmbedded(true);
-    setEmbeddedStreams([]);
     setExtractedSource('');
 
     try {
       // 第一优先：提取内嵌软字幕
       const result = await subtitleAPI.extractEmbeddedSubs(videoFile, 0, minDuration);
-      setEmbeddedStreams(result.streams);
 
       if (result.found && result.extracted) {
         setSubtitles(result.extracted.subtitles as SubtitleItem[]);
@@ -321,7 +316,6 @@ function App() {
 
     setIsOcrExtracting(true);
     setOcrStep(0);
-    setOcrTotalSteps(3);
     setOcrMessage('准备 OCR 识别...');
 
     try {
@@ -332,7 +326,6 @@ function App() {
           const progress = await subtitleAPI.getOcrProgress(task_id);
 
           setOcrStep(progress.step);
-          setOcrTotalSteps(progress.total_steps);
           setOcrMessage(progress.message);
 
           if (progress.status === 'completed' && progress.result) {
@@ -490,7 +483,7 @@ function App() {
           setRecommendBatch(event.batch!);
           // 增量更新 recommendations
           setRecommendations(prev => {
-            const next = new Map(prev);
+            const next = new Map(prev || []);
             for (const item of event.items!) {
               next.set(item.index, item);
             }
@@ -503,22 +496,21 @@ function App() {
 
       // 流结束后，收集失败项并自动选中推荐的句子
       setRecommendations(prev => {
-        if (prev.size > 0) {
-          // 收集失败项
-          const failed = new Set<number>();
-          for (const [index, rec] of prev) {
-            if (rec.reason.startsWith('处理失败:')) {
-              failed.add(index);
-            }
+        if (!prev || prev.size === 0) return prev;
+        // 收集失败项
+        const failed = new Set<number>();
+        for (const [index, rec] of prev) {
+          if (rec.reason.startsWith('处理失败:')) {
+            failed.add(index);
           }
-          setFailedIndices(failed);
-
-          // 自动选中推荐的句子（排除失败项）
-          const recommendedIndices = Array.from(prev.values())
-            .filter(r => r.include && !r.reason.startsWith('处理失败:'))
-            .map(r => r.index);
-          setSelectedIndices(new Set(recommendedIndices));
         }
+        setFailedIndices(failed);
+
+        // 自动选中推荐的句子（排除失败项）
+        const recommendedIndices = Array.from(prev.values())
+          .filter(r => r.include && !r.reason.startsWith('处理失败:'))
+          .map(r => r.index);
+        setSelectedIndices(new Set(recommendedIndices));
         return prev;
       });
 
@@ -566,7 +558,7 @@ function App() {
         } else if (event.type === 'batch') {
           setRecommendBatch(event.batch!);
           setRecommendations(prev => {
-            const next = new Map(prev);
+            const next = new Map(prev || []);
             for (const item of event.items!) {
               next.set(item.index, item);
             }
@@ -579,15 +571,14 @@ function App() {
 
       // 重试后更新失败列表
       setRecommendations(prev => {
-        if (prev.size > 0) {
-          const failed = new Set<number>();
-          for (const [index, rec] of prev) {
-            if (rec.reason.startsWith('处理失败:')) {
-              failed.add(index);
-            }
+        if (!prev || prev.size === 0) return prev;
+        const failed = new Set<number>();
+        for (const [index, rec] of prev) {
+          if (rec.reason.startsWith('处理失败:')) {
+            failed.add(index);
           }
-          setFailedIndices(failed);
         }
+        setFailedIndices(failed);
         return prev;
       });
 
