@@ -9,7 +9,7 @@
 ### 基础功能（无需 AI）
 
 - 解析 `.srt` 字幕文件，提取时间轴和文本
-- **字幕生成方案链**：自动检测内嵌软字幕 → OCR 硬字幕 → Whisper 转录
+- **字幕生成方案链**：自动检测内嵌软字幕 → Whisper 转录
 - 使用 ffmpeg 按时间轴切割音频片段（可自定义头尾 padding）
 - 自动截取每句对话的中间帧作为截图
 - 生成标准 `.apkg` 文件，可直接导入 Anki
@@ -30,12 +30,11 @@ anki_maker/
 │   ├── ai_process.py    # AI 批量处理
 │   ├── media_cut.py     # ffmpeg 媒体切割
 │   ├── pack_apkg.py     # Anki 打包
-│   ├── whisper_transcribe.py  # Whisper 自动转录
-│   └── ocr_subtitle.py  # OCR 硬字幕提取
+│   └── whisper_transcribe.py  # Whisper 自动转录
 ├── backend/             # FastAPI 后端（Web 界面）
 │   ├── main.py          # 后端入口
 │   ├── api/             # API 路由
-│   │   ├── subtitles.py # 字幕 / AI推荐 / 转录 / OCR
+│   │   ├── subtitles.py # 字幕 / AI推荐 / 转录
 │   │   ├── process.py   # 处理流程
 │   │   └── cards.py     # 卡片管理
 │   ├── models/          # 数据模型（Pydantic）
@@ -46,7 +45,9 @@ anki_maker/
 │       ├── services/    # API 调用
 │       └── App.tsx      # 主应用
 ├── scripts/             # 启动脚本
-│   └── start-all.py     # 一键启动前后端
+│   ├── start-all.py     # 一键启动脚本
+│   ├── start.bat        # Windows 启动脚本
+│   └── start.sh         # Linux/Mac 启动脚本
 ├── docs/                # 文档
 ├── main.py              # CLI 主程序入口
 ├── Dockerfile           # Docker 构建配置
@@ -146,7 +147,7 @@ DEEPSEEK_API_KEY=your-api-key-here
 
 Windows:
 ```bash
-.\start.bat
+scripts\start.bat
 ```
 
 或使用 Python 脚本：
@@ -156,8 +157,8 @@ python scripts/start-all.py
 
 Linux/Mac:
 ```bash
-chmod +x start.sh
-./start.sh
+chmod +x scripts/start.sh
+./scripts/start.sh
 ```
 
 启动后会自动打开浏览器，访问 `http://localhost:5173`
@@ -225,8 +226,7 @@ python main.py input/video.mp4 input/subtitle.srt output
     ↓
 ┌─ 字幕获取（自动降级）─────────────┐
 │ 1. 提取内嵌软字幕 (ffmpeg, <1s)   │
-│ 2. OCR 识别硬字幕 (PaddleOCR)     │
-│ 3. Whisper 转录（备选）           │
+│ 2. Whisper 转录（备选）           │
 └──────────────────────────────────┘
     ↓
 1. 解析字幕 → 字幕列表（开始/结束时间 + 文本）
@@ -277,14 +277,4 @@ Hello, how are you?
 - ffmpeg（系统级安装，需在 PATH 中）
 - Node.js 18+（前端开发）
 - AI API Key（可选，DeepSeek / OpenAI / Ollama 等兼容接口）
-- PaddleOCR（可选，用于 OCR 硬字幕提取）
 
-## 未来展望（完全体）
-
-| 功能 | 说明 |
-|------|------|
-| 📊 智能难度分级 | 自动评估句子难度（初级/中级/高级），适配不同水平学习者 |
-| 🌐 多语言支持 | 不仅英语，支持日语、法语、西班牙语等多语言学习 |
-| 👥 社区分享 | 用户上传和分享自己制作的牌组，构建共享学习资源库 |
-| 🎬 视频内容理解 | 结合视觉信息，不依赖字幕理解对话情境 |
-| 📱 进度追踪 | 记录每日学习量、正确率，生成学习报告 |
