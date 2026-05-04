@@ -100,20 +100,20 @@ def build_plugin(output_dir: Path):
 
 def _clean_venv(plugin_dir: Path):
     """清理 venv 中的缓存和测试文件"""
+    import stat
+
+    def _remove_readonly(func, path, exc_info):
+        """解除只读属性后重试删除"""
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
     # 删除 __pycache__
     for d in plugin_dir.rglob("__pycache__"):
-        shutil.rmtree(d, ignore_errors=True)
-    # 删除 .dist-info 中的 RECORD 等非必要文件
-    for d in (plugin_dir / "Lib" / "site-packages").glob("*.dist-info"):
-        for f in d.glob("*"):
-            if f.name not in ("METADATA", "INSTALLER"):
-                f.unlink(missing_ok=True)
-    # 删除 pip 缓存
-    cache_dir = plugin_dir / "Lib" / "site-packages" / "pip" / "_vendor"
+        shutil.rmtree(d, onerror=_remove_readonly, ignore_errors=True)
     # 删除测试目录
     for test_dir in plugin_dir.rglob("tests"):
         if test_dir.is_dir():
-            shutil.rmtree(test_dir, ignore_errors=True)
+            shutil.rmtree(test_dir, onerror=_remove_readonly, ignore_errors=True)
 
 
 def pack_zip(plugin_dir: Path, output_path: Path):
