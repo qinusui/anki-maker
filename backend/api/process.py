@@ -60,20 +60,32 @@ task_store: dict = {}
 task_store_lock = threading.Lock()
 
 
+def _to_url(file_path: str) -> str:
+    """将绝对文件路径转为 /output/... 的 HTTP URL"""
+    if not file_path:
+        return None
+    p = Path(file_path)
+    # 找到 output 目录后的相对路径
+    parts = p.parts
+    for i, part in enumerate(parts):
+        if part == "output":
+            return "/output/" + "/".join(parts[i+1:])
+    # fallback: 用文件名
+    return "/output/" + p.parent.name + "/" + p.name
+
+
 def _build_cards(processed_data):
     """将处理数据转为 ProcessedCard 列表，文件路径转为 HTTP URL"""
     cards = []
     for item in processed_data:
-        audio_path = item.get("audio_path")
-        screenshot_path = item.get("screenshot_path")
         cards.append(ProcessedCard(
             sentence=item.get("text", ""),
             translation=item.get("translation", ""),
             notes=item.get("notes", ""),
             start_sec=item.get("start_sec", 0),
             end_sec=item.get("end_sec", 0),
-            audio_path="/" + Path(audio_path).as_posix() if audio_path else None,
-            screenshot_path="/" + Path(screenshot_path).as_posix() if screenshot_path else None
+            audio_path=_to_url(item.get("audio_path")),
+            screenshot_path=_to_url(item.get("screenshot_path"))
         ))
     return cards
 
