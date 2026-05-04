@@ -1,4 +1,8 @@
-# ClipLingo
+<p align="center">
+  <img src="docs/logo.svg" width="120" />
+</p>
+
+<h1 align="center">ClipLingo</h1>
 
 将视频 + 字幕文件自动转换为可导入 Anki 的牌组。
 
