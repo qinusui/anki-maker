@@ -6,11 +6,13 @@ AppPublisher=ClipLingo
 DefaultDirName={autopf}\ClipLingo
 DefaultGroupName=ClipLingo
 OutputBaseFilename=ClipLingo_Setup
-OutputDir=installer
+OutputDir=dist
 Compression=lzma2/ultra64
 SolidCompression=yes
 ; 要求管理员权限（写入 Program Files 需要）
 PrivilegesRequired=admin
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 
 [Files]
 ; 主程序（PyInstaller 打包产物）
