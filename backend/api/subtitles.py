@@ -544,15 +544,19 @@ def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, languag
         raise RuntimeError("Whisper 未安装，请先安装 Whisper")
 
     progress_pipe.send({"step": "transcribing", "message": "转录中..."})
-    result = model.transcribe(
+    segments_iter, info = model.transcribe(
         video_path,
         language=language,
         word_timestamps=True,
-        verbose=False
+        vad_filter=True,
     )
 
-    segments = [{"start": s["start"], "end": s["end"], "text": s["text"].strip()}
-                for s in result.get("segments", [])]
+    segments = []
+    for seg in segments_iter:
+        text = seg.text.strip()
+        if text:
+            segments.append({"start": seg.start, "end": seg.end, "text": text})
+
     save_as_srt(segments, srt_path)
 
     progress_pipe.send({"step": "done", "segment_count": len(segments)})

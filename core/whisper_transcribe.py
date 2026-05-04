@@ -1,8 +1,8 @@
 """
 Whisper 自动转录模块 - 将视频/音频转录为带时间戳的字幕
+使用 faster-whisper 引擎
 """
 
-import whisper
 from pathlib import Path
 
 
@@ -13,7 +13,7 @@ def transcribe_video(
     word_timestamps: bool = True
 ) -> list[dict]:
     """
-    使用 Whisper 转录视频
+    使用 faster-whisper 转录视频
 
     Args:
         video_path: 视频文件路径
@@ -24,25 +24,28 @@ def transcribe_video(
     Returns:
         字幕段落列表，每项包含 start, end, text
     """
-    print(f"  加载 Whisper {model_name} 模型...")
-    model = whisper.load_model(model_name)
+    from faster_whisper import WhisperModel
+
+    print(f"  加载 faster-whisper {model_name} 模型...")
+    model = WhisperModel(model_name)
 
     print(f"  开始转录...")
-    result = model.transcribe(
+    segments_iter, info = model.transcribe(
         video_path,
         language=language,
         word_timestamps=word_timestamps,
-        verbose=False
+        vad_filter=True,
     )
 
-    # 提取段落级别的时间戳
     segments = []
-    for segment in result.get("segments", []):
-        segments.append({
-            "start": segment["start"],
-            "end": segment["end"],
-            "text": segment["text"].strip()
-        })
+    for segment in segments_iter:
+        text = segment.text.strip()
+        if text:
+            segments.append({
+                "start": segment.start,
+                "end": segment.end,
+                "text": text,
+            })
 
     return segments
 
