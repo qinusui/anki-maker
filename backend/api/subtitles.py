@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import asyncio
+import logging
 from typing import List, Optional
 
 from models.schemas import (
@@ -23,6 +24,16 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from core.parse_srt import parse_srt, filter_short_subtitles
 from core.whisper_manager import is_whisper_installed, install_whisper
 
+logger = logging.getLogger(__name__)
+
+
+def _get_base_dir() -> Path:
+    """获取基础目录，兼容打包和开发环境"""
+    if getattr(sys, 'frozen', False):
+        # PyInstaller 打包后，使用可执行文件所在目录
+        return Path(sys.executable).parent
+    return Path(__file__).parent.parent.parent
+
 
 def _get_bin_path(tool_name: str) -> str:
     """获取 ffmpeg/ffprobe 的路径，兼容打包和开发环境"""
@@ -32,8 +43,19 @@ def _get_bin_path(tool_name: str) -> str:
         bin_path = base_dir / "bin" / tool_name
         if bin_path.exists():
             return str(bin_path)
+        # 尝试可执行文件同级目录
+        exe_dir = Path(sys.executable).parent / "bin" / tool_name
+        if exe_dir.exists():
+            return str(exe_dir)
     # 开发环境或 Docker
     return tool_name
+
+
+def _get_temp_dir() -> Path:
+    """获取临时目录"""
+    temp_dir = _get_base_dir() / "temp"
+    temp_dir.mkdir(exist_ok=True)
+    return temp_dir
 
 router = APIRouter()
 
@@ -76,9 +98,7 @@ async def upload_subtitle(
         raise HTTPException(status_code=400, detail="只支持 .srt 格式的字幕文件")
 
     # 保存临时文件
-    temp_dir = Path(__file__).parent.parent.parent / "temp"
-    temp_dir.mkdir(exist_ok=True)
-
+    temp_dir = _get_temp_dir()
     temp_path = temp_dir / f"temp_{file.filename}"
 
     try:
@@ -137,9 +157,7 @@ async def extract_embedded_subtitles(
     if not video.filename:
         raise HTTPException(status_code=400, detail="未提供视频文件")
 
-    temp_dir = Path(__file__).parent.parent.parent / "temp"
-    temp_dir.mkdir(exist_ok=True)
-
+    temp_dir = _get_temp_dir()
     video_path = temp_dir / f"extract_{video.filename}"
 
     try:
@@ -148,6 +166,7 @@ async def extract_embedded_subtitles(
 
         # 1. 用 ffprobe 检测字幕流
         ffprobe_path = _get_bin_path("ffprobe.exe" if os.name == 'nt' else "ffprobe")
+        logger.info(f"Using ffprobe: {ffprobe_path}")
         probe_result = subprocess.run([
             ffprobe_path, "-v", "error",
             "-select_streams", "s",
@@ -157,7 +176,8 @@ async def extract_embedded_subtitles(
         ], capture_output=True, text=True, timeout=30)
 
         if probe_result.returncode != 0:
-            raise HTTPException(status_code=500, detail="ffprobe 检测失败，请确认已安装 ffmpeg")
+            logger.error(f"ffprobe failed: {probe_result.stderr}")
+            raise HTTPException(status_code=500, detail=f"ffprobe 检测失败: {probe_result.stderr[:200]}")
 
         probe_data = json.loads(probe_result.stdout)
         streams = probe_data.get("streams", [])
@@ -676,9 +696,7 @@ async def transcribe_video_endpoint(
     if not video.filename:
         raise HTTPException(status_code=400, detail="未提供视频文件")
 
-    temp_dir = Path(__file__).parent.parent.parent / "temp"
-    temp_dir.mkdir(exist_ok=True)
-
+    temp_dir = _get_temp_dir()
     video_path = temp_dir / f"transcribe_{video.filename}"
     srt_path = temp_dir / f"transcribe_{video.filename}.srt"
 
