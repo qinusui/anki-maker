@@ -73,6 +73,7 @@ docker-compose up -d
 ```
 
 **停止服务：**
+
 ```bash
 docker-compose down
 ```
@@ -86,6 +87,7 @@ docker-compose down
 ### Web 界面
 
 **后端依赖：**
+
 ```bash
 pip install -r requirements.txt
 cd backend
@@ -93,12 +95,14 @@ pip install -r requirements.txt
 ```
 
 **前端依赖：**
+
 ```bash
 cd frontend
 npm install
 ```
 
 **系统依赖：**
+
 - ffmpeg（添加到 PATH）
 - Node.js 18+（用于前端开发）
 
@@ -117,17 +121,20 @@ pip install -r requirements.txt
 如需使用 AI 翻译和智能筛选功能：
 
 **Web 界面：** 在右侧「AI 配置」栏填写，自动保存到浏览器：
+
 - **API 地址**：支持 OpenAI 兼容接口（DeepSeek / OpenAI / Ollama 等）
 - **模型名称**：自定义模型
 - **API Key**：自动持久化到 localStorage
 - **测试连接** / **获取模型列表**：一键验证配置
 
 **命令行：** 复制 `.env.example` 为 `.env`，填入你的 API Key：
+
 ```bash
 cp .env.example .env
 ```
 
 编辑 `.env` 文件：
+
 ```
 DEEPSEEK_API_KEY=your-api-key-here
 ```
@@ -135,6 +142,7 @@ DEEPSEEK_API_KEY=your-api-key-here
 ### 字幕处理配置
 
 左侧「字幕处理配置」栏可调整：
+
 - **最短时长**：过滤过短的字幕（默认 1.0 秒）
 - **开头提前**：音频切割时的头部 padding（默认 200ms）
 - **结尾延后**：音频切割时的尾部 padding（默认 200ms）
@@ -146,16 +154,19 @@ DEEPSEEK_API_KEY=your-api-key-here
 **一键启动（最简单）：**
 
 Windows:
+
 ```bash
 scripts\start.bat
 ```
 
 或使用 Python 脚本：
+
 ```bash
 python scripts/start-all.py
 ```
 
 Linux/Mac:
+
 ```bash
 chmod +x scripts/start.sh
 ./scripts/start.sh
@@ -170,11 +181,13 @@ chmod +x scripts/start.sh
 **1. 启动后端服务：**
 
 Windows:
+
 ```bash
 .\scripts\start-backend.bat
 ```
 
 或手动启动：
+
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -215,6 +228,7 @@ python main.py <视频文件> <字幕文件> [输出目录]
 ```
 
 示例：
+
 ```bash
 python main.py input/video.mp4 input/subtitle.srt output
 ```
@@ -243,10 +257,12 @@ Import to Anki
 ## 卡片格式
 
 **基础模式（无 AI）：**
+
 - **正面**：截图 + 音频（考察听力）
 - **背面**：原文
 
 **AI 模式（可选）：**
+
 - **正面**：截图 + 音频（考察听力）
 - **背面**：原文 + 中文翻译 + 词汇注释
 
@@ -254,9 +270,9 @@ Import to Anki
 
 ```
 [Front]
-┌──────────┐
+┌───────────┐
 │ Screenshot│
-└──────────┘
+└───────────┘
 🔊 [Audio]
 
 [Back]
@@ -266,8 +282,8 @@ Hello, how are you?
 
 📌 how are you — 常见问候语
 ```
-![示例卡片](https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/ccv2%2F2026-05-02%2FMiniMax-M2.7%2F2049470837202882777%2Fe960d03c9133af8f38e9b23a5ea41b9e4a133812df25de24c49ad17cc5be1a8b..jpeg?Expires=1777749513&OSSAccessKeyId=LTAI5tGLnRTkBjLuYPjNcKQ8&Signature=TtVm%2FSjmG%2FDkEKUGJoZLUofu%2F9c%3D)
 
+![示例卡片](https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/ccv2%2F2026-05-02%2FMiniMax-M2.7%2F2049470837202882777%2Fe960d03c9133af8f38e9b23a5ea41b9e4a133812df25de24c49ad17cc5be1a8b..jpeg?Expires=1777749513&OSSAccessKeyId=LTAI5tGLnRTkBjLuYPjNcKQ8&Signature=TtVm%2FSjmG%2FDkEKUGJoZLUofu%2F9c%3D)
 
 ## 依赖
 
@@ -275,4 +291,3 @@ Hello, how are you?
 - ffmpeg（系统级安装，需在 PATH 中）
 - Node.js 18+（前端开发）
 - AI API Key（可选，DeepSeek / OpenAI / Ollama 等兼容接口）
-
