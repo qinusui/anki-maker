@@ -5,7 +5,10 @@ Whisper 动态管理模块
 import importlib
 import subprocess
 import sys
+import logging
 from typing import Optional, Any
+
+logger = logging.getLogger(__name__)
 
 
 def is_whisper_installed() -> bool:
@@ -70,17 +73,18 @@ def _find_python() -> str:
     return ""
 
 
-def install_whisper() -> bool:
+def install_whisper() -> tuple[bool, str]:
     """
     安装 whisper 及其依赖（CPU 版本）
-    返回是否安装成功
+    返回 (是否安装成功, 错误信息)
     """
     python_path = _find_python()
     if not python_path:
-        return False
+        return False, "未找到系统 Python，请先安装 Python 3.8+"
+    logger.info(f"Using Python for whisper install: {python_path}")
     try:
         # 安装 openai-whisper，使用 PyTorch CPU 版本（约 200MB）
-        subprocess.run(
+        result = subprocess.run(
             [
                 python_path,
                 "-m",
@@ -90,13 +94,21 @@ def install_whisper() -> bool:
                 "--index-url",
                 "https://download.pytorch.org/whl/cpu",
             ],
-            check=True,
             capture_output=True,
             text=True,
+            timeout=600,
         )
-        return True
-    except subprocess.CalledProcessError:
-        return False
+        if result.returncode != 0:
+            logger.error(f"pip install failed: {result.stderr}")
+            return False, result.stderr[:500] or "pip install 失败"
+        return True, ""
+    except subprocess.TimeoutExpired:
+        return False, "安装超时（10分钟），请检查网络连接"
+    except FileNotFoundError:
+        return False, f"Python 路径无效: {python_path}"
+    except Exception as e:
+        logger.exception("install_whisper error")
+        return False, str(e)[:500]
 
 
 def get_whisper() -> Optional[Any]:

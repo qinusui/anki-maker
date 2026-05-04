@@ -778,11 +778,11 @@ async def whisper_install():
     if is_whisper_installed():
         return {"status": "already_installed", "message": "Whisper 已安装"}
 
-    success = install_whisper()
+    success, error = install_whisper()
     if success:
         return {"status": "success", "message": "Whisper 安装成功"}
     else:
-        raise HTTPException(status_code=500, detail="Whisper 安装失败，请检查网络连接")
+        raise HTTPException(status_code=500, detail=f"Whisper 安装失败: {error}")
 
 
 @router.post("/transcribe")
