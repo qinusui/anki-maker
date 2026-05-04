@@ -13,6 +13,7 @@ SolidCompression=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+SetupIconFile=frontend\public\favicon.ico
 
 [Files]
 ; 主程序（PyInstaller 打包产物）
@@ -22,8 +23,8 @@ Source: "bin\ffmpeg.exe"; DestDir: "{app}\bin"
 Source: "bin\ffprobe.exe"; DestDir: "{app}\bin"
 
 [Icons]
-Name: "{group}\ClipLingo"; Filename: "{app}\ClipLingo.exe"
-Name: "{userdesktop}\ClipLingo"; Filename: "{app}\ClipLingo.exe"
+Name: "{group}\ClipLingo"; Filename: "{app}\ClipLingo.exe"; IconFilename: "{app}\ClipLingo.exe"
+Name: "{userdesktop}\ClipLingo"; Filename: "{app}\ClipLingo.exe"; IconFilename: "{app}\ClipLingo.exe"
 
 [Run]
 Filename: "{app}\ClipLingo.exe"; Description: "立即启动"; Flags: postinstall skipifsilent
