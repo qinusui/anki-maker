@@ -654,6 +654,32 @@ def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
             Path(result_json_path).unlink(missing_ok=True)
 
 
+def _check_ffmpeg_installed() -> dict:
+    """检测 ffmpeg 是否已安装"""
+    import subprocess
+    try:
+        ffmpeg_path = _get_bin_path("ffmpeg.exe" if os.name == 'nt' else "ffmpeg")
+        result = subprocess.run(
+            [ffmpeg_path, "-version"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            # 提取版本号
+            version_line = result.stdout.split('\n')[0] if result.stdout else ""
+            return {"installed": True, "version": version_line, "path": ffmpeg_path}
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+        pass
+    return {"installed": False, "version": None, "path": None}
+
+
+@router.get("/ffmpeg/status")
+async def ffmpeg_status():
+    """检查 ffmpeg 是否已安装"""
+    return _check_ffmpeg_installed()
+
+
 @router.get("/whisper/status")
 async def whisper_status():
     """检查 Whisper 是否已安装"""

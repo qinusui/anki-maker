@@ -135,6 +135,8 @@ function App() {
   const [promptPreset, setPromptPreset] = useState<PresetKey>('grammar');
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [recommendBatchSize, setRecommendBatchSize] = useState(30);
+  const [ffmpegInstalled, setFFmpegInstalled] = useState<boolean | null>(null);
+  const [ffmpegVersion, setFFmpegVersion] = useState<string | null>(null);
 
   // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
   useEffect(() => {
@@ -150,6 +152,22 @@ function App() {
       clearTimeout(timer);
       clearInterval((window as any).__heartbeatInterval);
     };
+  }, []);
+
+  // 检测 ffmpeg 安装状态（延迟 3 秒等后端就绪）
+  useEffect(() => {
+    const checkFFmpeg = async () => {
+      try {
+        const status = await subtitleAPI.getFFmpegStatus();
+        setFFmpegInstalled(status.installed);
+        setFFmpegVersion(status.version);
+      } catch {
+        setFFmpegInstalled(false);
+        setFFmpegVersion(null);
+      }
+    };
+    const timer = setTimeout(checkFFmpeg, 3000);
+    return () => clearTimeout(timer);
   }, []);
 
   // AI 配置变化时自动保存到 localStorage
@@ -836,6 +854,29 @@ function App() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* ffmpeg 未安装提示 */}
+              {ffmpegInstalled === false && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800">
+                  <div className="flex items-start gap-2">
+                    <span className="text-yellow-600 dark:text-yellow-400">⚠️</span>
+                    <div className="text-sm">
+                      <p className="font-medium text-yellow-800 dark:text-yellow-300">ffmpeg 未安装</p>
+                      <p className="text-yellow-700 dark:text-yellow-400 mt-1">
+                        视频处理需要 ffmpeg 支持。请安装 ffmpeg 并添加到系统 PATH。
+                      </p>
+                      <a
+                        href="https://ffmpeg.org/download.html"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-yellow-800 underline hover:text-yellow-900 dark:text-yellow-300 dark:hover:text-yellow-200"
+                      >
+                        下载 ffmpeg →
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* 左侧：文件上传 */}
                 <div className="lg:col-span-2 space-y-4">

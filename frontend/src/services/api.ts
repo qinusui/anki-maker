@@ -146,6 +146,12 @@ export const subtitleAPI = {
     }
   },
 
+  // 检查 ffmpeg 安装状态
+  getFFmpegStatus: async (): Promise<{ installed: boolean; version: string | null; path: string | null }> => {
+    const response = await api.get('/api/subtitles/ffmpeg/status');
+    return response.data;
+  },
+
   // 检查 Whisper 安装状态
   getWhisperStatus: async (): Promise<{ installed: boolean }> => {
     const response = await api.get('/api/subtitles/whisper/status');
