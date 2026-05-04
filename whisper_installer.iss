@@ -5,6 +5,7 @@ AppPublisher=ClipLingo
 DefaultDirName={autopf}\ClipLingo\whisper_plugin
 DefaultGroupName=ClipLingo
 OutputBaseFilename=ClipLingo_Whisper_Setup
+OutputDir=dist
 Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=admin
