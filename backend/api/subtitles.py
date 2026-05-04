@@ -569,9 +569,9 @@ def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, languag
 
 def _run_transcribe_task_frozen(task_id: str, video_path_str: str, srt_path_str: str,
                                 model_name: str, language: str, min_duration: float):
-    """冻结环境：通过子进程调用系统 Python 运行 whisper_runner.py"""
+    """冻结环境：通过 whisper_plugin 的 venv Python 运行 whisper_runner.py"""
     import time as _time
-    from core.whisper_manager import _find_python
+    from core.whisper_manager import _get_plugin_python, whisper_available
 
     def update(status, step, message):
         with _transcribe_lock:
@@ -580,9 +580,10 @@ def _run_transcribe_task_frozen(task_id: str, video_path_str: str, srt_path_str:
     try:
         update("processing", 1, "准备转录...")
 
-        python_path = _find_python()
-        if not python_path:
-            raise RuntimeError("未找到系统 Python，无法运行 Whisper 转录")
+        if not whisper_available():
+            raise RuntimeError("Whisper 插件未安装，请先安装 ClipLingo_Whisper_Setup.exe")
+
+        python_path = _get_plugin_python()
 
         runner_script = str(Path(_PROJECT_ROOT) / "core" / "whisper_runner.py")
         lang_arg = language if language else "None"

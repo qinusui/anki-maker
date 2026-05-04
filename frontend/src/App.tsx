@@ -136,6 +136,7 @@ function App() {
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [recommendBatchSize, setRecommendBatchSize] = useState(30);
   const [ffmpegInstalled, setFFmpegInstalled] = useState<boolean | null>(null);
+  const [whisperPluginInstalled, setWhisperPluginInstalled] = useState<boolean | null>(null);
 
   // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
   useEffect(() => {
@@ -153,17 +154,23 @@ function App() {
     };
   }, []);
 
-  // 检测 ffmpeg 安装状态（延迟 3 秒等后端就绪）
+  // 检测 ffmpeg 和 Whisper 插件安装状态（延迟 3 秒等后端就绪）
   useEffect(() => {
-    const checkFFmpeg = async () => {
+    const checkStatus = async () => {
       try {
-        const status = await subtitleAPI.getFFmpegStatus();
-        setFFmpegInstalled(status.installed);
+        const ffmpegStatus = await subtitleAPI.getFFmpegStatus();
+        setFFmpegInstalled(ffmpegStatus.installed);
       } catch {
         setFFmpegInstalled(false);
       }
+      try {
+        const whisperStatus = await subtitleAPI.getWhisperStatus();
+        setWhisperPluginInstalled(whisperStatus.installed);
+      } catch {
+        setWhisperPluginInstalled(false);
+      }
     };
-    const timer = setTimeout(checkFFmpeg, 3000);
+    const timer = setTimeout(checkStatus, 3000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -274,27 +281,12 @@ function App() {
   const startTranscribe = async () => {
     if (!videoFile || transcribingRef.current) return;
 
-    // 检查 Whisper 是否已安装
+    // 检查 Whisper 插件是否已安装
     try {
       const whisperStatus = await subtitleAPI.getWhisperStatus();
       if (!whisperStatus.installed) {
-        const shouldInstall = confirm('Whisper 未安装，是否现在安装？\n\n安装后才能使用语音转录功能，安装过程可能需要几分钟。');
-        if (shouldInstall) {
-          setTranscribeMessage('正在安装 Whisper，请耐心等待...');
-          setIsTranscribing(true);
-          try {
-            await subtitleAPI.installWhisper();
-            alert('Whisper 安装成功！');
-          } catch (e: any) {
-            const detail = e?.response?.data?.detail || e?.message || '未知错误';
-            alert('Whisper 安装失败: ' + detail);
-            setIsTranscribing(false);
-            return;
-          }
-          setIsTranscribing(false);
-        } else {
-          return;
-        }
+        alert('Whisper 插件未安装。\n\n请下载并安装 ClipLingo_Whisper_Setup.exe 以启用语音转录功能。');
+        return;
       }
     } catch (e) {
       console.error('检查 Whisper 状态失败:', e);
@@ -875,6 +867,21 @@ function App() {
                 </div>
               )}
 
+              {/* Whisper 插件未安装提示 */}
+              {whisperPluginInstalled === false && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-900/20 dark:border-blue-800">
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 dark:text-blue-400">ℹ️</span>
+                    <div className="text-sm">
+                      <p className="font-medium text-blue-800 dark:text-blue-300">Whisper 插件未安装</p>
+                      <p className="text-blue-700 dark:text-blue-400 mt-1">
+                        语音转录功能需要 Whisper 插件。请下载并安装 ClipLingo_Whisper_Setup.exe。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* 左侧：文件上传 */}
                 <div className="lg:col-span-2 space-y-4">
@@ -930,9 +937,20 @@ function App() {
                           </Button>
                         </>
                       )}
-                      {showModelPicker && !isTranscribing && (
+                      {showModelPicker && !isTranscribing && whisperPluginInstalled === false && (
+                        <div className="border border-blue-200 rounded-lg p-4 bg-blue-50 space-y-2 dark:border-blue-700 dark:bg-blue-900/20">
+                          <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Whisper 插件未安装</p>
+                          <p className="text-xs text-blue-700 dark:text-blue-400">
+                            语音转录功能需要安装 Whisper 插件。请下载并运行 ClipLingo_Whisper_Setup.exe，安装到与 ClipLingo 相同的目录。
+                          </p>
+                          <Button variant="ghost" size="sm" onClick={() => setShowModelPicker(false)}>
+                            关闭
+                          </Button>
+                        </div>
+                      )}
+                      {showModelPicker && !isTranscribing && whisperPluginInstalled !== false && (
                         <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3 dark:border-gray-600 dark:bg-gray-800">
-                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">选择 Whisper 模型（首次使用会自动下载）</p>
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">选择 Whisper 模型（首次使用会自动下载模型）</p>
                           <div className="space-y-2">
                             {WHISPER_MODELS.map(m => (
                               <label
