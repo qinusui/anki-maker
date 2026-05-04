@@ -8,16 +8,20 @@
 
 **定位：辅助学习英语的软件** — 无需 AI 即可使用基础功能，配置 AI 后可智能筛选有学习价值的句子。
 
-## 下载
+## 下载与安装
 
 **安装版（推荐）：**
 
 - `ClipLingo_Setup.exe` — 主程序安装包（~230MB）
 - `ClipLingo_Whisper_Setup.exe` — Whisper 转录插件安装包，可选（~53MB）
 
+安装后启动 `ClipLingo.exe`，浏览器访问 `http://localhost:8000`。转录插件需安装到同一目录。
+
 **免安装版：**
 
 - `ClipLingo_portable.zip` — 完整版，内置 Whisper（~700MB）
+
+解压后运行 `ClipLingo.exe`，浏览器访问 `http://localhost:8000`。
 
 **Docker：**
 
@@ -28,86 +32,18 @@ docker-compose up -d
 # 浏览器访问 http://localhost:8000
 ```
 
-## 功能
-
-### 基础功能（无需 AI）
-
-- **字幕生成方案链**：自动检测内嵌软字幕 → Whisper 语音转录
-- 解析 `.srt` 字幕文件，提取时间轴和文本
-- 使用 ffmpeg 按时间轴切割音频片段（可自定义头尾 padding）
-- 自动截取每句对话的中间帧作为截图
-- 生成标准 `.apkg` 文件，可直接导入 Anki
-
-### AI 进阶功能（可选）
-
-- **AI 智能筛选**：自动筛选有学习价值的句子，过滤无意义对话（如 ok, yeah, uh-huh 等）
-- **AI 翻译注释**：调用 AI API（DeepSeek / OpenAI / Ollama 等兼容接口）批量翻译并生成词汇注释
-- **Web 配置持久化**：API 地址、模型名称、Key 自动保存到浏览器
-
-## 安装
-
-### 安装版（Windows）
-
-1. 运行 `ClipLingo_Setup.exe` 安装主程序
-2. （可选）运行 `ClipLingo_Whisper_Setup.exe` 安装转录插件，需安装到同一目录
-3. 启动 `ClipLingo.exe`，浏览器访问 `http://localhost:8000`
-
-### 免安装版（Windows）
-
-1. 解压 `ClipLingo_portable.zip`
-2. 运行 `ClipLingo.exe`，浏览器访问 `http://localhost:8000`
-
-### Docker
-
-```bash
-git clone https://github.com/qinusui/ClipLingo.git
-cd ClipLingo
-docker-compose up -d
-```
-
-停止服务：
-
-```bash
-docker-compose down
-```
-
 > 需要先安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
-### 开发环境
-
-**后端依赖：**
+**开发环境：**
 
 ```bash
-pip install -r requirements.txt
-cd backend
-pip install -r requirements.txt
+pip install -r requirements.txt && cd backend && pip install -r requirements.txt && cd ../frontend && npm install && cd ..
+scripts\start.bat  # Windows
+# 或
+./scripts/start.sh  # Linux/Mac
 ```
 
-**前端依赖：**
-
-```bash
-cd frontend
-npm install
-```
-
-**系统依赖：**
-
-- ffmpeg（添加到 PATH）
-- Node.js 18+（用于前端开发）
-- Python 3.10+
-
-**一键启动：**
-
-```bash
-# Windows
-scripts\start.bat
-
-# Linux/Mac
-chmod +x scripts/start.sh
-./scripts/start.sh
-```
-
-启动后自动打开浏览器，访问 `http://localhost:5173`
+需要 Python 3.10+、ffmpeg（PATH 中）、Node.js 18+。
 
 ## 配置
 
@@ -155,9 +91,3 @@ chmod +x scripts/start.sh
 - **正面**：截图 + 音频（考察听力）
 - **背面**：原文 + 中文翻译 + 词汇注释
 
-## 依赖
-
-- Python 3.10+
-- ffmpeg（安装版已内置，开发环境需自行安装）
-- Node.js 18+（前端开发）
-- AI API Key（可选，DeepSeek / OpenAI / Ollama 等兼容接口）
