@@ -648,6 +648,10 @@ def _run_transcribe_task_frozen(task_id: str, video_path_str: str, srt_path_str:
         logger.exception("Whisper 转录失败")
         update("error", 0, f"转录失败: {str(e)}")
 
+    finally:
+        Path(video_path_str).unlink(missing_ok=True)
+        Path(srt_path_str).unlink(missing_ok=True)
+
 
 def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
                          model_name: str, language: str, min_duration: float):

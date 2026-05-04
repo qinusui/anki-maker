@@ -204,6 +204,8 @@ async def upload_and_process(
                     "message": f"处理失败: {str(e)}",
                     "error": str(e)
                 })
+        finally:
+            shutil.rmtree(task_dir, ignore_errors=True)
 
     # 在后台线程中执行
     thread = threading.Thread(target=run_processing, daemon=True)
