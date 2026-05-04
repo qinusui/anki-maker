@@ -1,4 +1,4 @@
-# Anki 卡片生成器
+# ClipLingo
 
 将视频 + 字幕文件自动转换为可导入 Anki 的牌组。
 
@@ -23,7 +23,7 @@
 ## 目录结构
 
 ```
-anki_maker/
+ClipLingo/
 ├── core/                # 核心处理模块
 │   ├── __init__.py
 │   ├── parse_srt.py     # 字幕解析
@@ -62,8 +62,8 @@ anki_maker/
 
 ```bash
 # 克隆项目
-git clone https://github.com/qinusui/anki-maker.git
-cd anki-maker
+git clone https://github.com/qinusui/ClipLingo.git
+cd ClipLingo
 
 # 启动服务
 docker-compose up -d

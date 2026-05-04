@@ -1,11 +1,11 @@
 ; installer.iss - Inno Setup 安装包配置
 [Setup]
-AppName=Anki 卡片生成器
+AppName=ClipLingo
 AppVersion=1.0
-AppPublisher=AnkiMaker
-DefaultDirName={autopf}\AnkiMaker
-DefaultGroupName=AnkiMaker
-OutputBaseFilename=AnkiMaker_Setup
+AppPublisher=ClipLingo
+DefaultDirName={autopf}\ClipLingo
+DefaultGroupName=ClipLingo
+OutputBaseFilename=ClipLingo_Setup
 OutputDir=installer
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -14,17 +14,17 @@ PrivilegesRequired=admin
 
 [Files]
 ; 主程序（PyInstaller 打包产物）
-Source: "dist\anki-maker\*"; DestDir: "{app}"; Flags: recursesubdirs
+Source: "dist\ClipLingo\*"; DestDir: "{app}"; Flags: recursesubdirs
 ; ffmpeg 二进制文件
 Source: "bin\ffmpeg.exe"; DestDir: "{app}\bin"
 Source: "bin\ffprobe.exe"; DestDir: "{app}\bin"
 
 [Icons]
-Name: "{group}\Anki 卡片生成器"; Filename: "{app}\anki-maker.exe"
-Name: "{userdesktop}\Anki 卡片生成器"; Filename: "{app}\anki-maker.exe"
+Name: "{group}\ClipLingo"; Filename: "{app}\ClipLingo.exe"
+Name: "{userdesktop}\ClipLingo"; Filename: "{app}\ClipLingo.exe"
 
 [Run]
-Filename: "{app}\anki-maker.exe"; Description: "立即启动"; Flags: postinstall skipifsilent
+Filename: "{app}\ClipLingo.exe"; Description: "立即启动"; Flags: postinstall skipifsilent
 
 [UninstallDelete]
 ; 卸载时清理用户生成的 output 目录

@@ -1,4 +1,4 @@
-# Anki 卡片生成器 - Web 版
+# ClipLingo - Web 版
 
 一个现代化的 Web 界面，用于将视频和字幕转换为 Anki 学习卡片。
 
@@ -12,7 +12,7 @@
 ## 项目结构
 
 ```
-anki_maker/
+ClipLingo/
 ├── backend/              # FastAPI 后端
 │   ├── main.py          # 主应用入口
 │   ├── api/             # API 路由

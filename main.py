@@ -1,5 +1,5 @@
 """
-Anki 卡片生成器 - 主程序
+ClipLingo - 主程序
 将视频和字幕文件转换为可导入 Anki 的牌组
 """
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 # 处理 --version 参数（在导入模块之前，避免依赖问题）
 if "--version" in sys.argv:
-    print("AnkiMaker 1.0")
+    print("ClipLingo 1.0")
     sys.exit(0)
 
 from core.parse_srt import parse_srt, filter_short_subtitles, Subtitle
@@ -67,7 +67,7 @@ def run(
             progress_callback(step, TOTAL_STEPS, message, details)
 
     print("=" * 50)
-    print("Anki 卡片生成器")
+    print("ClipLingo")
     print("=" * 50)
 
     # 检查是否有 checkpoint 可以恢复
@@ -284,7 +284,7 @@ def main():
     """命令行入口"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Anki 卡片生成器")
+    parser = argparse.ArgumentParser(description="ClipLingo")
     parser.add_argument("video", help="视频文件路径")
     parser.add_argument("subtitle", nargs="?", default=None, help="字幕文件路径（不提供则自动用 Whisper 转录）")
     parser.add_argument("output", nargs="?", default="./output", help="输出目录")

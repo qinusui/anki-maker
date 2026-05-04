@@ -1,5 +1,5 @@
 """
-Anki 卡片生成器 - FastAPI 后端服务
+ClipLingo - FastAPI 后端服务
 提供 RESTful API 供前端调用
 """
 

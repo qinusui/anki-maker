@@ -717,7 +717,7 @@ function App() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-2">
               <Film className="w-8 h-8 text-primary-600" />
-              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Anki 卡片生成器</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">ClipLingo</h1>
             </div>
             <div className="flex items-center gap-4">
               <Button
@@ -731,7 +731,7 @@ function App() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => window.open('https://github.com/qinusui/anki-maker/issues', '_blank')}
+                onClick={() => window.open('https://github.com/qinusui/ClipLingo/issues', '_blank')}
               >
                 <MessageSquare className="w-4 h-4 mr-2" />
                 反馈

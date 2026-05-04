@@ -13,7 +13,7 @@ from pathlib import Path
 
 def main():
     print("=" * 50)
-    print("Anki 卡片生成器 - 一键启动")
+    print("ClipLingo - 一键启动")
     print("=" * 50)
 
     # 从 scripts/ 目录向上找到项目根目录
