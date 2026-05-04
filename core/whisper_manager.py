@@ -44,7 +44,17 @@ def _get_plugin_python() -> str:
 
 
 def is_whisper_installed() -> bool:
-    """检查 whisper 插件是否可用"""
+    """检查 whisper 是否可用（安装包用插件检测，开发环境直接导入）"""
+    # 非打包环境：直接尝试导入
+    if not getattr(sys, 'frozen', False):
+        try:
+            import importlib
+            importlib.import_module("faster_whisper")
+            return True
+        except ImportError:
+            return False
+
+    # 打包环境：通过插件 venv 检测
     if not whisper_available():
         return False
     python_path = _get_plugin_python()
@@ -60,12 +70,18 @@ def is_whisper_installed() -> bool:
 
 def install_whisper() -> tuple[bool, str]:
     """
-    从 whisper_plugin 安装 faster-whisper（插件 venv 内安装）
+    安装 faster-whisper
+    - 安装包模式：在插件 venv 内安装
+    - 开发模式：在当前 Python 环境安装
     返回 (是否安装成功, 错误信息)
     """
-    python_path = _get_plugin_python()
-    if not os.path.isfile(python_path):
-        return False, "Whisper 插件未安装，请先安装 ClipLingo_Whisper_Setup.exe"
+    # 非打包环境：直接用当前 Python
+    if not getattr(sys, 'frozen', False):
+        python_path = sys.executable
+    else:
+        python_path = _get_plugin_python()
+        if not os.path.isfile(python_path):
+            return False, "Whisper 插件未安装，请先安装 ClipLingo_Whisper_Setup.exe"
 
     _PIP_SOURCES = [
         ("https://pypi.org/simple/", "pypi.org"),
