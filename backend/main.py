@@ -182,12 +182,22 @@ async def download_file(filename: str):
     return FileResponse(file_path, filename=filename)
 
 
+def _open_browser():
+    """延迟打开浏览器"""
+    import webbrowser
+    time.sleep(2)  # 等待服务器启动
+    webbrowser.open('http://localhost:8000')
+
+
 if __name__ == "__main__":
     # Docker 或 PyInstaller 中禁用 reload
     is_docker = os.environ.get('DOCKER_CONTAINER') == '1'
     is_frozen = getattr(sys, 'frozen', False)
 
     if is_docker or is_frozen:
+        # 打包模式下自动打开浏览器
+        if is_frozen:
+            threading.Thread(target=_open_browser, daemon=True).start()
         uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
     else:
         uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
