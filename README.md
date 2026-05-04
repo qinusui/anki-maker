@@ -131,6 +131,8 @@ pip install -r requirements.txt
 - **API Key**：自动持久化到 localStorage
 - **测试连接** / **获取模型列表**：一键验证配置
 
+> **隐私安全**：API Key 仅存储在浏览器本地（localStorage），不会上传到任何服务器，仅在本机与 localhost 后端通信时使用。电脑共用时注意清理浏览器数据。
+
 **命令行：** 复制 `.env.example` 为 `.env`，填入你的 API Key：
 
 ```bash
