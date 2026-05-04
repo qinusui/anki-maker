@@ -183,10 +183,11 @@ async def download_file(filename: str):
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=not getattr(sys, 'frozen', False),
-        log_level="info"
-    )
+    # Docker 或 PyInstaller 中禁用 reload
+    is_docker = os.environ.get('DOCKER_CONTAINER') == '1'
+    is_frozen = getattr(sys, 'frozen', False)
+
+    if is_docker or is_frozen:
+        uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    else:
+        uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
