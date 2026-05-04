@@ -231,13 +231,11 @@ python main.py input/video.mp4 input/subtitle.srt output
     ↓
 1. 解析字幕 → 字幕列表（开始/结束时间 + 文本）
     ↓
-2. [可选] AI 筛选 → 过滤无意义对话，保留有学习价值的句子
+2. [可选] AI 处理 → 筛选有价值句子 + 翻译 + 词汇注释
     ↓
-3. [可选] AI API → 翻译 + 词汇注释
+3. ffmpeg → 切音频 + 截中间帧
     ↓
-4. ffmpeg → 切音频 + 截中间帧
-    ↓
-5. genanki → 打包 .apkg
+4. genanki → 打包 .apkg
     ↓
 导入 Anki 使用
 ```
