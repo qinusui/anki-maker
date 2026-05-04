@@ -222,22 +222,22 @@ python main.py input/video.mp4 input/subtitle.srt output
 ## 流程
 
 ```
-视频文件
+Video file
     ↓
-┌─ 字幕获取（自动降级）───────────────┐
-│ 1. 提取内嵌软字幕 (ffmpeg, <1s)    │
-│ 2. Whisper 转录（备选）            │
-└────────────────────────────────────┘
+┌─ Subtitle Source (auto fallback) ──────┐
+│ 1. Extract soft subtitle (ffmpeg, <1s) │
+│ 2. Whisper transcription (fallback)    │
+└────────────────────────────────────────┘
     ↓
-1. 解析字幕 → 字幕列表（开始/结束时间 + 文本）
+1. Parse subtitles → list (start/end time + text)
     ↓
-2. [可选] AI 处理 → 筛选有价值句子 + 翻译 + 词汇注释
+2. [Optional] AI → filter + translate + annotate
     ↓
-3. ffmpeg → 切音频 + 截中间帧
+3. ffmpeg → cut audio + extract frame
     ↓
-4. genanki → 打包 .apkg
+4. genanki → pack .apkg
     ↓
-导入 Anki 使用
+Import to Anki
 ```
 
 ## 卡片格式
