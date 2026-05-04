@@ -782,7 +782,12 @@ async def ffmpeg_status():
 @router.get("/whisper/status")
 async def whisper_status():
     """检查 Whisper 是否已安装"""
-    return {"installed": is_whisper_installed()}
+    installed = is_whisper_installed()
+    if installed:
+        return {"installed": True, "mode": "ok"}
+    # 非打包环境提示 pip 安装，打包环境提示下载插件
+    mode = "dev" if not getattr(sys, 'frozen', False) else "frozen"
+    return {"installed": False, "mode": mode}
 
 
 @router.post("/whisper/install")

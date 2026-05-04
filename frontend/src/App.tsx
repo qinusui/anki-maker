@@ -142,6 +142,7 @@ function App() {
   const [recommendBatchSize, setRecommendBatchSize] = useState(30);
   const [ffmpegInstalled, setFFmpegInstalled] = useState<boolean | null>(null);
   const [whisperPluginInstalled, setWhisperPluginInstalled] = useState<boolean | null>(null);
+  const [whisperMode, setWhisperMode] = useState<string>('');
 
   // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
   useEffect(() => {
@@ -171,6 +172,7 @@ function App() {
       try {
         const whisperStatus = await subtitleAPI.getWhisperStatus();
         setWhisperPluginInstalled(whisperStatus.installed);
+        setWhisperMode(whisperStatus.mode || '');
       } catch {
         setWhisperPluginInstalled(false);
       }
@@ -291,7 +293,9 @@ function App() {
     try {
       const whisperStatus = await subtitleAPI.getWhisperStatus();
       if (!whisperStatus.installed) {
-        alert('Whisper 插件未安装。\n\n请下载并安装 ClipLingo_Whisper_Setup.exe 以启用语音转录功能。');
+        alert(whisperMode === 'dev'
+          ? 'Whisper 未安装。\n\n开发环境请运行: pip install faster-whisper'
+          : 'Whisper 插件未安装。\n\n请下载并安装 ClipLingo_Whisper_Setup.exe 以启用语音转录功能。');
         return;
       }
     } catch (e) {
@@ -881,9 +885,11 @@ function App() {
                   <div className="flex items-start gap-2">
                     <span className="text-blue-600 dark:text-blue-400">ℹ️</span>
                     <div className="text-sm">
-                      <p className="font-medium text-blue-800 dark:text-blue-300">Whisper 插件未安装</p>
+                      <p className="font-medium text-blue-800 dark:text-blue-300">Whisper 未安装</p>
                       <p className="text-blue-700 dark:text-blue-400 mt-1">
-                        语音转录功能需要 Whisper 插件。请下载并安装 ClipLingo_Whisper_Setup.exe。
+                        {whisperMode === 'dev'
+                          ? '开发环境请运行 pip install faster-whisper 安装。'
+                          : '请下载并安装 ClipLingo_Whisper_Setup.exe。'}
                       </p>
                     </div>
                   </div>
@@ -947,9 +953,11 @@ function App() {
                       )}
                       {showModelPicker && !isTranscribing && whisperPluginInstalled === false && (
                         <div className="border border-blue-200 rounded-lg p-4 bg-blue-50 space-y-2 dark:border-blue-700 dark:bg-blue-900/20">
-                          <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Whisper 插件未安装</p>
+                          <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Whisper 未安装</p>
                           <p className="text-xs text-blue-700 dark:text-blue-400">
-                            语音转录功能需要安装 Whisper 插件。请下载并运行 ClipLingo_Whisper_Setup.exe，安装到与 ClipLingo 相同的目录。
+                            {whisperMode === 'dev'
+                              ? '开发环境请运行 pip install faster-whisper 安装。'
+                              : '请下载并运行 ClipLingo_Whisper_Setup.exe，安装到与 ClipLingo 相同的目录。'}
                           </p>
                           <Button variant="ghost" size="sm" onClick={() => setShowModelPicker(false)}>
                             关闭

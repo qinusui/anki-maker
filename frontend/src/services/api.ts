@@ -153,7 +153,7 @@ export const subtitleAPI = {
   },
 
   // 检查 Whisper 安装状态
-  getWhisperStatus: async (): Promise<{ installed: boolean }> => {
+  getWhisperStatus: async (): Promise<{ installed: boolean; mode: string }> => {
     const response = await api.get('/api/subtitles/whisper/status');
     return response.data;
   },
