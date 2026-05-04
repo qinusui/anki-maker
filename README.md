@@ -287,8 +287,6 @@ Hello, how are you?
 📌 how are you — 常见问候语
 ```
 
-![示例卡片](https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/ccv2%2F2026-05-02%2FMiniMax-M2.7%2F2049470837202882777%2Fe960d03c9133af8f38e9b23a5ea41b9e4a133812df25de24c49ad17cc5be1a8b..jpeg?Expires=1777749513&OSSAccessKeyId=LTAI5tGLnRTkBjLuYPjNcKQ8&Signature=TtVm%2FSjmG%2FDkEKUGJoZLUofu%2F9c%3D)
-
 ## 依赖
 
 - Python 3.10+
