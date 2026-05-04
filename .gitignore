@@ -56,3 +56,5 @@ dist2/
 dist3/
 dist4/
 build/
+# Binary files
+bin/*.exe
