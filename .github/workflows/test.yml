@@ -1,9 +1,7 @@
 name: 测试安装包
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:      # 允许手动触发
+  workflow_dispatch:      # 仅手动触发
 
 jobs:
   test:
