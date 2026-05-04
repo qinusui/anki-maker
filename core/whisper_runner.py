@@ -1,15 +1,19 @@
 """
-Whisper 独立转录脚本 - 供打包环境通过子进程调用系统 Python 运行
+Whisper 独立转录脚本 - 供打包环境通过子进程调用插件 Python 运行
 用法: python whisper_runner.py <video_path> <srt_path> <model_name> [language]
 """
 import sys
 import json
+import importlib.util
 from pathlib import Path
 
-# 确保能导入项目模块
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from core.whisper_transcribe import transcribe_video, save_as_srt
+# 直接加载 whisper_transcribe 模块，绕过 core/__init__.py（避免依赖 openai 等）
+_module_path = Path(__file__).parent / "whisper_transcribe.py"
+_spec = importlib.util.spec_from_file_location("whisper_transcribe", _module_path)
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+transcribe_video = _mod.transcribe_video
+save_as_srt = _mod.save_as_srt
 
 
 def main():
