@@ -136,7 +136,6 @@ function App() {
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [recommendBatchSize, setRecommendBatchSize] = useState(30);
   const [ffmpegInstalled, setFFmpegInstalled] = useState<boolean | null>(null);
-  const [ffmpegVersion, setFFmpegVersion] = useState<string | null>(null);
 
   // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
   useEffect(() => {
@@ -160,10 +159,8 @@ function App() {
       try {
         const status = await subtitleAPI.getFFmpegStatus();
         setFFmpegInstalled(status.installed);
-        setFFmpegVersion(status.version);
       } catch {
         setFFmpegInstalled(false);
-        setFFmpegVersion(null);
       }
     };
     const timer = setTimeout(checkFFmpeg, 3000);
