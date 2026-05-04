@@ -285,8 +285,9 @@ function App() {
           try {
             await subtitleAPI.installWhisper();
             alert('Whisper 安装成功！');
-          } catch (e) {
-            alert('Whisper 安装失败: ' + (e instanceof Error ? e.message : '未知错误'));
+          } catch (e: any) {
+            const detail = e?.response?.data?.detail || e?.message || '未知错误';
+            alert('Whisper 安装失败: ' + detail);
             setIsTranscribing(false);
             return;
           }
