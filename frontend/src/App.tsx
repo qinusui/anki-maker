@@ -243,10 +243,12 @@ function App() {
       }
 
       if (result.found && !result.extracted) {
-        alert(result.message);
+        // 内嵌字幕无法提取，提示使用 Whisper
+        console.log('内嵌字幕无法提取:', result.message);
       }
     } catch (e) {
       console.error('检测字幕失败:', e);
+      // 提取失败时静默继续到 Whisper 转录
     }
 
     setCheckingEmbedded(false);
@@ -256,6 +258,31 @@ function App() {
   // 确认模型后开始转录
   const startTranscribe = async () => {
     if (!videoFile || transcribingRef.current) return;
+
+    // 检查 Whisper 是否已安装
+    try {
+      const whisperStatus = await subtitleAPI.getWhisperStatus();
+      if (!whisperStatus.installed) {
+        const shouldInstall = confirm('Whisper 未安装，是否现在安装？\n\n安装后才能使用语音转录功能，安装过程可能需要几分钟。');
+        if (shouldInstall) {
+          setTranscribeMessage('正在安装 Whisper，请耐心等待...');
+          setIsTranscribing(true);
+          try {
+            await subtitleAPI.installWhisper();
+            alert('Whisper 安装成功！');
+          } catch (e) {
+            alert('Whisper 安装失败: ' + (e instanceof Error ? e.message : '未知错误'));
+            setIsTranscribing(false);
+            return;
+          }
+          setIsTranscribing(false);
+        } else {
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('检查 Whisper 状态失败:', e);
+    }
 
     setShowModelPicker(false);
     transcribingRef.current = true;

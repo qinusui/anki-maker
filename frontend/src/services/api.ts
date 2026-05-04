@@ -146,6 +146,18 @@ export const subtitleAPI = {
     }
   },
 
+  // 检查 Whisper 安装状态
+  getWhisperStatus: async (): Promise<{ installed: boolean }> => {
+    const response = await api.get('/api/subtitles/whisper/status');
+    return response.data;
+  },
+
+  // 安装 Whisper
+  installWhisper: async (): Promise<{ status: string; message: string }> => {
+    const response = await api.post('/api/subtitles/whisper/install', null, { timeout: 600000 });
+    return response.data;
+  },
+
   // 提取视频内嵌字幕
   extractEmbeddedSubs: async (
     video: File,
