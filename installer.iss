@@ -14,6 +14,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=frontend\public\favicon.ico
+DisableDirPage=no
 
 [Files]
 ; 主程序（PyInstaller 打包产物，含 _internal/bin/ 下的 ffmpeg）

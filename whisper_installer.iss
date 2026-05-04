@@ -12,6 +12,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=frontend\public\favicon.ico
+DisableDirPage=no
 
 [Files]
 ; 安装 whisper_plugin 到主程序同级目录
