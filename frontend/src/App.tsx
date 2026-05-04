@@ -124,6 +124,11 @@ function App() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const transcribingRef = useRef(false);
   const transcribedVideoName = useRef<string | null>(null);
+  const step2Ref = useRef<HTMLDivElement>(null);
+
+  const scrollToStep2 = () => {
+    setTimeout(() => step2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  };
   const [transcribeStep, setTranscribeStep] = useState(0);
   const [, setTranscribeTotalSteps] = useState(4);
   const [transcribeMessage, setTranscribeMessage] = useState('');
@@ -261,6 +266,7 @@ function App() {
         transcribedVideoName.current = videoFile.name;
         setExtractedSource(`从视频提取（${result.extracted.codec} / ${result.extracted.language}，${result.extracted.total} 条）`);
         setCheckingEmbedded(false);
+        scrollToStep2();
         return;
       }
 
@@ -319,6 +325,7 @@ function App() {
             setSelectedIndices(new Set(progress.result.subtitles.map((s: SubtitleItem) => s.index)));
             setRecommendations(null);
             transcribedVideoName.current = videoFile.name;
+            scrollToStep2();
           }
 
           if (progress.status === 'error') {
@@ -358,6 +365,7 @@ function App() {
 
       setSubtitles(response.subtitles);
       setSelectedIndices(new Set(response.subtitles.map(s => s.index)));
+      scrollToStep2();
 
       setProcessingSteps(steps =>
         steps.map((s, i) =>
@@ -887,9 +895,9 @@ function App() {
                 <div className="lg:col-span-2 space-y-4">
                   <FileUpload
                     accept=".mp4,.mkv,.avi,.mov,.webm"
-                    onFileSelect={(f) => { setVideoFile(f); transcribedVideoName.current = null; setExtractedSource(''); }}
+                    onFileSelect={(f) => { setVideoFile(f); transcribedVideoName.current = null; setExtractedSource(''); setSubtitles([]); setSelectedIndices(new Set()); setRecommendations(null); }}
                     selectedFile={videoFile}
-                    onClear={() => { setVideoFile(null); transcribedVideoName.current = null; setExtractedSource(''); }}
+                    onClear={() => { setVideoFile(null); transcribedVideoName.current = null; setExtractedSource(''); setSubtitles([]); setSelectedIndices(new Set()); setRecommendations(null); }}
                     label="视频文件"
                     icon="video"
                   />
@@ -928,12 +936,12 @@ function App() {
                       {!extractedSource && (
                         <>
                           <Button
-                            variant="primary"
+                            variant={subtitles.length > 0 ? 'secondary' : 'primary'}
                             className="w-full"
                             onClick={handleTranscribe}
-                            disabled={!videoFile || isProcessing || isTranscribing || checkingEmbedded}
+                            disabled={!videoFile || isProcessing || isTranscribing || checkingEmbedded || subtitles.length > 0}
                           >
-                            {checkingEmbedded ? '检测字幕中...' : isTranscribing ? '转录中...' : '生成字幕'}
+                            {subtitles.length > 0 ? '字幕已就绪' : checkingEmbedded ? '检测字幕中...' : isTranscribing ? '转录中...' : '生成字幕'}
                           </Button>
                         </>
                       )}
@@ -1152,6 +1160,7 @@ function App() {
 
           {/* Step 2 · 筛选内容 */}
           {subtitles.length > 0 && (
+            <div ref={step2Ref}>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1290,6 +1299,7 @@ function App() {
                 </Button>
               </CardContent>
             </Card>
+            </div>
           )}
 
           {/* Step 3 · 生成卡片 */}
