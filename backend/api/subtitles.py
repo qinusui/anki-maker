@@ -590,9 +590,10 @@ def _run_transcribe_task_frozen(task_id: str, video_path_str: str, srt_path_str:
 
         update("processing", 1, f"启动 Whisper 转录（{model_name}）...")
 
+        cmd = [python_path, runner_script, video_path_str, srt_path_str, model_name, lang_arg]
+        logger.info(f"Whisper subprocess cmd: {cmd}")
         proc = subprocess.Popen(
-            [python_path, runner_script, video_path_str, srt_path_str, model_name, lang_arg],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
         transcribe_start = 0
@@ -617,6 +618,7 @@ def _run_transcribe_task_frozen(task_id: str, video_path_str: str, srt_path_str:
 
         if proc.returncode != 0:
             stderr = proc.stderr.read()
+            logger.error(f"Whisper subprocess failed (rc={proc.returncode}): {stderr[:500]}")
             raise RuntimeError(f"Whisper 转录失败: {stderr[:300]}")
 
         update("processing", 3, "处理字幕...")
@@ -639,6 +641,7 @@ def _run_transcribe_task_frozen(task_id: str, video_path_str: str, srt_path_str:
             }
 
     except Exception as e:
+        logger.exception("Whisper 转录失败")
         update("error", 0, f"转录失败: {str(e)}")
 
 
