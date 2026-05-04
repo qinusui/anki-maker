@@ -37,17 +37,20 @@ def _get_base_dir() -> Path:
 
 def _get_bin_path(tool_name: str) -> str:
     """获取 ffmpeg/ffprobe 的路径，兼容打包和开发环境"""
-    # PyInstaller 打包后的路径
     if getattr(sys, 'frozen', False):
-        base_dir = Path(sys._MEIPASS)
-        bin_path = base_dir / "bin" / tool_name
-        if bin_path.exists():
-            return str(bin_path)
-        # 尝试可执行文件同级目录
-        exe_dir = Path(sys.executable).parent / "bin" / tool_name
-        if exe_dir.exists():
-            return str(exe_dir)
-    # 开发环境或 Docker
+        # PyInstaller 打包后的路径查找
+        possible_paths = [
+            Path(sys._MEIPASS) / "bin" / tool_name,  # _internal/bin/
+            Path(sys.executable).parent / "bin" / tool_name,  # exe 同级 bin/
+            Path(sys.executable).parent / tool_name,  # exe 同级
+            Path(sys._MEIPASS) / tool_name,  # _internal/
+        ]
+        for path in possible_paths:
+            if path.exists():
+                logger.info(f"Found {tool_name} at: {path}")
+                return str(path)
+        logger.warning(f"{tool_name} not found in any expected location")
+    # 开发环境或 Docker - 直接使用命令名
     return tool_name
 
 

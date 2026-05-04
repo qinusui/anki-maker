@@ -112,11 +112,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 挂载静态文件目录
-static_dir = BASE_DIR / "static"
-static_dir.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-
 # 挂载输出目录供下载和预览
 output_dir = BASE_DIR / "output"
 output_dir.mkdir(exist_ok=True)
@@ -129,8 +124,12 @@ if getattr(sys, 'frozen', False):
 else:
     # 正常运行时，前端在项目根目录的 frontend/dist
     frontend_dist = BASE_DIR.parent / "frontend" / "dist"
+
 if frontend_dist.exists():
-    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="frontend-assets")
+    # 挂载 assets 目录（JS、CSS）
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
 
 # 注册路由
 app.include_router(subtitles_router, prefix="/api/subtitles", tags=["subtitles"])
@@ -162,10 +161,55 @@ async def root():
     if frontend_index.exists():
         return FileResponse(frontend_index)
     return {
-        "message": "Anki Card Generator API",
+        "message": "ClipLingo API",
         "version": "1.0.0",
         "docs": "/docs"
     }
+
+
+@app.get("/favicon.ico")
+async def favicon_ico():
+    """返回 favicon.ico"""
+    favicon_path = frontend_dist / "favicon.ico"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, media_type="image/x-icon")
+    raise HTTPException(status_code=404)
+
+
+@app.get("/favicon.svg")
+async def favicon_svg():
+    """返回 favicon.svg"""
+    favicon_path = frontend_dist / "favicon.svg"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, media_type="image/svg+xml")
+    raise HTTPException(status_code=404)
+
+
+@app.get("/favicon-96x96.png")
+async def favicon_png():
+    """返回 favicon-96x96.png"""
+    favicon_path = frontend_dist / "favicon-96x96.png"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, media_type="image/png")
+    raise HTTPException(status_code=404)
+
+
+@app.get("/apple-touch-icon.png")
+async def apple_touch_icon():
+    """返回 apple-touch-icon.png"""
+    icon_path = frontend_dist / "apple-touch-icon.png"
+    if icon_path.exists():
+        return FileResponse(icon_path, media_type="image/png")
+    raise HTTPException(status_code=404)
+
+
+@app.get("/site.webmanifest")
+async def site_webmanifest():
+    """返回 site.webmanifest"""
+    manifest_path = frontend_dist / "site.webmanifest"
+    if manifest_path.exists():
+        return FileResponse(manifest_path, media_type="application/manifest+json")
+    raise HTTPException(status_code=404)
 
 
 @app.get("/health")
