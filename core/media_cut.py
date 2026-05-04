@@ -3,6 +3,8 @@
 """
 
 import subprocess
+import sys
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from dataclasses import dataclass
@@ -20,15 +22,32 @@ class MediaItem:
 PADDING_DEFAULT_MS = 200  # 默认 padding 毫秒数
 
 
+def _get_bin_path(tool_name: str) -> str:
+    """获取 ffmpeg/ffprobe 的路径，兼容打包和开发环境"""
+    # PyInstaller 打包后的路径
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys._MEIPASS)
+        bin_path = base_dir / "bin" / tool_name
+        if bin_path.exists():
+            return str(bin_path)
+    # 开发环境或 Docker
+    return tool_name
+
+
 def get_ffmpeg_path() -> str:
     """获取 ffmpeg 路径"""
-    return "ffmpeg"
+    return _get_bin_path("ffmpeg.exe" if os.name == 'nt' else "ffmpeg")
+
+
+def get_ffprobe_path() -> str:
+    """获取 ffprobe 路径"""
+    return _get_bin_path("ffprobe.exe" if os.name == 'nt' else "ffprobe")
 
 
 def get_video_duration(video_path: str) -> float:
     """使用 ffprobe 获取视频时长（秒）"""
     cmd = [
-        "ffprobe", "-v", "error",
+        get_ffprobe_path(), "-v", "error",
         "-show_entries", "format=duration",
         "-of", "default=noprint_wrappers=1:nokey=1",
         video_path

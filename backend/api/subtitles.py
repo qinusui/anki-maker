@@ -9,6 +9,7 @@ import tempfile
 import shutil
 import json
 import os
+import sys
 import asyncio
 from typing import List, Optional
 
@@ -18,10 +19,21 @@ from models.schemas import (
 )
 
 # 导入现有的字幕解析模块
-import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from core.parse_srt import parse_srt, filter_short_subtitles
 from core.whisper_manager import is_whisper_installed, install_whisper
+
+
+def _get_bin_path(tool_name: str) -> str:
+    """获取 ffmpeg/ffprobe 的路径，兼容打包和开发环境"""
+    # PyInstaller 打包后的路径
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys._MEIPASS)
+        bin_path = base_dir / "bin" / tool_name
+        if bin_path.exists():
+            return str(bin_path)
+    # 开发环境或 Docker
+    return tool_name
 
 router = APIRouter()
 
@@ -135,8 +147,9 @@ async def extract_embedded_subtitles(
             shutil.copyfileobj(video.file, f)
 
         # 1. 用 ffprobe 检测字幕流
+        ffprobe_path = _get_bin_path("ffprobe.exe" if os.name == 'nt' else "ffprobe")
         probe_result = subprocess.run([
-            "ffprobe", "-v", "error",
+            ffprobe_path, "-v", "error",
             "-select_streams", "s",
             "-show_entries", "stream=index:codec_name:stream_tags=language,title",
             "-of", "json",
@@ -182,8 +195,9 @@ async def extract_embedded_subtitles(
         target = text_streams[stream_index]
 
         srt_path = temp_dir / f"extracted_{video.filename}.srt"
+        ffmpeg_path = _get_bin_path("ffmpeg.exe" if os.name == 'nt' else "ffmpeg")
         extract_cmd = [
-            "ffmpeg", "-y",
+            ffmpeg_path, "-y",
             "-i", str(video_path),
             "-map", f"0:s:{stream_index}",
             "-f", "srt",
