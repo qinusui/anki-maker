@@ -10,9 +10,11 @@ from pathlib import Path
 if getattr(sys, 'frozen', False):
     # PyInstaller 打包后的路径
     BASE_DIR = Path(sys._MEIPASS)
+    INSTALL_DIR = Path(sys.executable).parent
 else:
     # 正常 Python 运行的路径
     BASE_DIR = Path(__file__).parent
+    INSTALL_DIR = BASE_DIR
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
@@ -112,8 +114,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 挂载输出目录供下载和预览
-output_dir = BASE_DIR / "output"
+# 挂载输出目录供下载和预览（写到安装目录，不是 _internal）
+output_dir = INSTALL_DIR / "output"
 output_dir.mkdir(exist_ok=True)
 app.mount("/output", StaticFiles(directory=str(output_dir)), name="output")
 

@@ -83,7 +83,7 @@ async def upload_and_process(
     video: UploadFile = File(...),
     subtitle: UploadFile = File(...),
     min_duration: float = Form(1.0),
-    output_dir: str = Form("./output"),
+    output_dir: str = Form(None),
     api_key: Optional[str] = Form(None),
     api_base: Optional[str] = Form(None),
     model_name: Optional[str] = Form(None),
@@ -95,6 +95,12 @@ async def upload_and_process(
     上传视频和字幕文件，后台异步处理
     返回 task_id，前端通过 /progress/{task_id} 轮询进度
     """
+    if output_dir is None:
+        if getattr(sys, 'frozen', False):
+            output_dir = str(Path(sys.executable).parent / "output")
+        else:
+            output_dir = str(Path(__file__).parent.parent.parent / "output")
+
     task_id = str(uuid.uuid4())
     task_dir = TEMP_DIR / task_id
     task_dir.mkdir(exist_ok=True)
