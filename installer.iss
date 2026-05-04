@@ -16,11 +16,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=frontend\public\favicon.ico
 
 [Files]
-; 主程序（PyInstaller 打包产物）
+; 主程序（PyInstaller 打包产物，含 _internal/bin/ 下的 ffmpeg）
 Source: "dist\ClipLingo\*"; DestDir: "{app}"; Flags: recursesubdirs
-; ffmpeg 二进制文件
-Source: "bin\ffmpeg.exe"; DestDir: "{app}\bin"
-Source: "bin\ffprobe.exe"; DestDir: "{app}\bin"
 
 [Icons]
 Name: "{group}\ClipLingo"; Filename: "{app}\ClipLingo.exe"; IconFilename: "{app}\ClipLingo.exe"
