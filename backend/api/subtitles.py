@@ -638,8 +638,9 @@ def _run_transcribe_task_frozen(task_id: str, video_path_str: str, srt_path_str:
                 "total_steps": 4,
                 "message": f"转录完成，共 {len(subtitle_items)} 条字幕",
                 "result": {
-                    "srt_file": os.path.basename(srt_path_str),
-                    "total": len(subtitle_items)
+                    "subtitles": [s.model_dump() for s in subtitle_items],
+                    "total": len(srt_subtitles),
+                    "filtered": len(subtitle_items)
                 }
             }
 
