@@ -526,7 +526,10 @@ _transcribe_store: dict = {}
 _transcribe_lock = _threading.Lock()
 
 # 项目根目录（用于子进程设置 sys.path）
-_PROJECT_ROOT = str(Path(__file__).parent.parent.parent)
+if getattr(sys, 'frozen', False):
+    _PROJECT_ROOT = sys._MEIPASS
+else:
+    _PROJECT_ROOT = str(Path(__file__).parent.parent.parent)
 
 
 def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, language: str,
