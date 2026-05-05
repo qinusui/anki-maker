@@ -34,7 +34,8 @@ def run(
     api_base: str = None,
     model_name: str = None,
     padding_start_ms: int = 200,
-    padding_end_ms: int = 200
+    padding_end_ms: int = 200,
+    card_styles: list = None
 ) -> dict:
     """
     运行完整流程
@@ -108,7 +109,8 @@ def run(
                     processed,
                     str(output_dir),
                     str(audio_dir),
-                    str(screenshot_dir)
+                    str(screenshot_dir),
+                    card_styles=card_styles
                 )
                 # 完成
                 print("\n[5/5] 完成!")
@@ -194,7 +196,9 @@ def run(
                 "text": sub.text,
                 "translation": pp.get("translation", ""),
                 "notes": pp.get("notes", ""),
-                "reason": pp.get("reason", "")
+                "reason": pp.get("reason", ""),
+                "word": pp.get("word", ""),
+                "definition": pp.get("definition", "")
             })
         progress(2, f"使用 AI 推荐结果，共 {len(processed)} 条")
     else:
@@ -265,7 +269,8 @@ def run(
         processed,
         str(output_dir),
         str(audio_dir),
-        str(screenshot_dir)
+        str(screenshot_dir),
+        card_styles=card_styles
     )
 
     # 完成

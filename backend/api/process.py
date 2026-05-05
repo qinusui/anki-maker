@@ -82,6 +82,8 @@ def _build_cards(processed_data):
             sentence=item.get("text", ""),
             translation=item.get("translation", ""),
             notes=item.get("notes", ""),
+            word=item.get("word", ""),
+            definition=item.get("definition", ""),
             start_sec=item.get("start_sec", 0),
             end_sec=item.get("end_sec", 0),
             audio_path=_to_url(item.get("audio_path")),
@@ -101,7 +103,8 @@ async def upload_and_process(
     model_name: Optional[str] = Form(None),
     pre_processed: Optional[str] = Form(None),
     padding_start_ms: int = Form(200),
-    padding_end_ms: int = Form(200)
+    padding_end_ms: int = Form(200),
+    card_styles: Optional[str] = Form(None)
 ):
     """
     上传视频和字幕文件，后台异步处理
@@ -136,6 +139,14 @@ async def upload_and_process(
             pre_processed_data = json.loads(pre_processed)
         except json.JSONDecodeError:
             pass
+
+    # 解析卡片样式
+    card_styles_list = None
+    if card_styles:
+        try:
+            card_styles_list = json.loads(card_styles)
+        except json.JSONDecodeError:
+            card_styles_list = [card_styles]
 
     # 初始化任务进度
     with task_store_lock:
@@ -175,7 +186,8 @@ async def upload_and_process(
                 api_base=api_base,
                 model_name=model_name,
                 padding_start_ms=padding_start_ms,
-                padding_end_ms=padding_end_ms
+                padding_end_ms=padding_end_ms,
+                card_styles=card_styles_list
             )
 
             apkg_filename = Path(result["apkg_path"]).name

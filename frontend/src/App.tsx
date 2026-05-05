@@ -7,7 +7,7 @@ import { FileUpload } from './components/FileUpload';
 import { SubtitleTable } from './components/SubtitleTable';
 import { ProcessingStatus } from './components/ProcessingStatus';
 import { CardPreview } from './components/CardPreview';
-import { SubtitleItem, ProcessedCard, AIRecommendation } from './types';
+import { SubtitleItem, ProcessedCard, AIRecommendation, CardStyle } from './types';
 import { subtitleAPI, processAPI } from './services/api';
 import { useTheme } from './hooks/useTheme';
 
@@ -170,6 +170,7 @@ function App() {
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
   const [customPrompt, setCustomPrompt] = useState<string>(buildPresetPrompt(DEFAULT_RECOMMEND_PROMPT, savedConfig?.sourceLanguage || 'en'));
   const [promptPreset, setPromptPreset] = useState<PresetKey>('grammar');
+  const [cardStyles, setCardStyles] = useState<Set<CardStyle>>(new Set(['sentence']));
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [recommendBatchSize, setRecommendBatchSize] = useState(30);
   const [ffmpegInstalled, setFFmpegInstalled] = useState<boolean | null>(null);
@@ -617,7 +618,9 @@ function App() {
           text: s.text,
           translation: rec?.translation || '',
           notes: rec?.notes || '',
-          reason: rec?.reason || ''
+          reason: rec?.reason || '',
+          word: rec?.word || '',
+          definition: rec?.definition || ''
         };
       });
 
@@ -632,7 +635,8 @@ function App() {
         apiBase || undefined,
         modelName || undefined,
         paddingStartMs,
-        paddingEndMs
+        paddingEndMs,
+        Array.from(cardStyles)
       );
 
       // 2. 轮询进度
@@ -1347,6 +1351,44 @@ function App() {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">卡片样式</label>
+                      <div className="flex gap-3">
+                        {([
+                          { key: 'sentence' as CardStyle, label: '句型卡', desc: '正面：截图+音频 → 背面：原文+翻译+注释' },
+                          { key: 'vocab' as CardStyle, label: '词汇卡', desc: '正面：单词 → 背面：释义+例句（含截图音频）' },
+                        ]).map(({ key, label, desc }) => (
+                          <label
+                            key={key}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium border cursor-pointer transition-colors ${
+                              cardStyles.has(key)
+                                ? 'bg-primary-500 text-white border-primary-500'
+                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600'
+                            }`}
+                            title={desc}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={cardStyles.has(key)}
+                              disabled={isProcessing}
+                              onChange={() => {
+                                setCardStyles(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(key)) {
+                                    if (next.size > 1) next.delete(key); // 至少保留一种
+                                  } else {
+                                    next.add(key);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="sr-only"
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">提示词内容（可自由修改）</label>
                       <textarea
                         value={customPrompt}
@@ -1415,6 +1457,7 @@ function App() {
                   <div className="mt-6">
                     <CardPreview
                       cards={result}
+                      cardStyles={Array.from(cardStyles)}
                       currentIndex={previewIndex}
                       onPrevious={() => setPreviewIndex(Math.max(0, previewIndex - 1))}
                       onNext={() => setPreviewIndex(Math.min(result.length - 1, previewIndex + 1))}

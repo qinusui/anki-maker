@@ -26,6 +26,8 @@ export interface ProcessedCard {
   sentence: string;
   translation: string;
   notes: string;
+  word?: string;
+  definition?: string;
   start_sec: number;
   end_sec: number;
   audio_path?: string;
@@ -38,7 +40,11 @@ export interface AIRecommendation {
   reason: string;
   translation?: string;
   notes?: string;
+  word?: string;
+  definition?: string;
 }
+
+export type CardStyle = 'sentence' | 'vocab';
 
 export interface AIRecommendResponse {
   recommendations: AIRecommendation[];

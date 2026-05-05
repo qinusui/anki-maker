@@ -18,38 +18,18 @@ class CardData:
     notes: str
     audio_path: str
     screenshot_path: str
+    word: str = ""
+    definition: str = ""
 
 
 def generate_model_id(name: str) -> int:
-    """
-    根据名称生成稳定的模型 ID
-    """
+    """根据名称生成稳定的模型 ID"""
     hash_val = hashlib.md5(name.encode()).digest()
     return int.from_bytes(hash_val[:4], 'big') & 0x7FFFFFFF
 
 
-def create_deck(
-    deck_name: str,
-    cards: list[CardData],
-    audio_dir: str = None,
-    screenshot_dir: str = None
-) -> genanki.Deck:
-    """
-    创建 Anki 牌组
-
-    Args:
-        deck_name: 牌组名称
-        cards: 卡片数据列表
-        audio_dir: 音频目录（用于相对路径）
-        screenshot_dir: 截图目录（用于相对路径）
-
-    Returns:
-        genanki.Deck 对象
-    """
-    model_id = generate_model_id("电影字幕卡_" + deck_name)
-
-    # 卡片样式
-    css = """\
+# ── 统一样式 ──────────────────────────────────────────────
+_CSS = """\
 .card {
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 18px;
@@ -67,6 +47,7 @@ def create_deck(
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   margin-bottom: 10px;
 }
+/* ── 句型卡 ── */
 .original { font-weight: 600; font-size: 1.2em; color: #000; margin-top: 15px; }
 .translation { color: #666; font-size: 0.95em; margin-top: 8px; }
 .notes {
@@ -79,19 +60,69 @@ def create_deck(
   border-radius: 4px;
   white-space: pre-line;
 }
+/* ── 词汇卡 ── */
+.target-word {
+  font-size: 2.5em;
+  font-weight: 800;
+  color: #007bff;
+  margin: 40px 0 10px 0;
+}
+.word-meaning {
+  font-size: 1.4em;
+  color: #28a745;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+.hint {
+  color: #999;
+  font-size: 0.85em;
+  margin-top: 20px;
+}
+.example-box {
+  background: #f0f2f5;
+  padding: 15px;
+  border-radius: 12px;
+  text-align: left;
+  margin-top: 15px;
+}
+.example-box .tag {
+  display: inline-block;
+  font-size: 0.7em;
+  padding: 2px 8px;
+  background: #6c757d;
+  color: white;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+.example-box .image-box img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.example-box .original {
+  font-weight: 600;
+  font-size: 1em;
+  color: #333;
+  margin: 8px 0;
+}
+/* ── 夜间模式 ── */
 .nightMode .card { background-color: #1e1e1e; color: #eee; }
 .nightMode .translation { color: #aaa; }
-.nightMode .notes { background: #2d2d2d; border-left-color: #375a7f; }"""
+.nightMode .notes { background: #2d2d2d; border-left-color: #375a7f; }
+.nightMode .target-word { color: #4da6ff; }
+.nightMode .word-meaning { color: #5cb85c; }
+.nightMode .hint { color: #666; }
+.nightMode .example-box { background: #2d2d2d; }
+.nightMode .example-box .original { color: #ccc; }"""
 
-    # 正面模板
-    qfmt = """\
+# ── 句型卡模板 ──────────────────────────────────────────
+_SENTENCE_FRONT = """\
 <div class="container">
   <div class="image-box">{{Screenshot}}</div>
   <div class="audio-box">{{Audio}}</div>
 </div>"""
 
-    # 背面模板
-    afmt = """\
+_SENTENCE_BACK = """\
 <div class="container">
   <div class="image-box">{{Screenshot}}</div>
   <hr id="answer">
@@ -106,49 +137,113 @@ def create_deck(
   </div>
 </div>"""
 
-    # 创建模型
-    model = genanki.Model(
+# ── 词汇卡模板 ──────────────────────────────────────────
+_VOCAB_FRONT = """\
+<div class="container">
+  <div class="target-word">{{Word}}</div>
+  <div class="hint">试着回想这个词在视频里的意思</div>
+</div>"""
+
+_VOCAB_BACK = """\
+<div class="container">
+  <div class="target-word">{{Word}}</div>
+  {{#Definition}}
+  <div class="word-meaning">{{Definition}}</div>
+  {{/Definition}}
+
+  <hr id="answer">
+
+  <div class="example-box">
+    <div class="tag">CONTEXT / 例句</div>
+    {{#Screenshot}}
+    <div class="image-box">{{Screenshot}}</div>
+    {{/Screenshot}}
+    <div class="original">{{Sentence}}</div>
+    <div class="audio-box">{{Audio}}</div>
+  </div>
+</div>"""
+
+
+def _create_model(model_id: int, name: str, templates: list[dict]) -> genanki.Model:
+    """创建统一字段的 Anki 模型"""
+    return genanki.Model(
         model_id=model_id,
-        name='电影字幕卡',
+        name=name,
         fields=[
             {'name': 'Screenshot'},
             {'name': 'Audio'},
             {'name': 'Sentence'},
             {'name': 'Translation'},
             {'name': 'Notes'},
+            {'name': 'Word'},
+            {'name': 'Definition'},
         ],
-        templates=[{
-            'name': 'Card 1',
-            'qfmt': qfmt,
-            'afmt': afmt,
-        }],
-        css=css
+        templates=templates,
+        css=_CSS
     )
 
-    # 创建牌组
+
+def create_deck(
+    deck_name: str,
+    cards: list[CardData],
+    card_styles: list[str] = None,
+    audio_dir: str = None,
+    screenshot_dir: str = None
+) -> genanki.Deck:
+    """
+    创建 Anki 牌组
+
+    Args:
+        deck_name: 牌组名称
+        cards: 卡片数据列表
+        card_styles: 卡片样式列表，如 ["sentence"]、["vocab"]、["sentence", "vocab"]
+        audio_dir: 音频目录
+        screenshot_dir: 截图目录
+
+    Returns:
+        genanki.Deck 对象
+    """
+    if card_styles is None:
+        card_styles = ["sentence"]
+
+    # 根据选中的样式构建模板列表
+    templates = []
+    if "sentence" in card_styles:
+        templates.append({'name': '句型卡', 'qfmt': _SENTENCE_FRONT, 'afmt': _SENTENCE_BACK})
+    if "vocab" in card_styles:
+        templates.append({'name': '词汇卡', 'qfmt': _VOCAB_FRONT, 'afmt': _VOCAB_BACK})
+
+    if not templates:
+        templates.append({'name': '句型卡', 'qfmt': _SENTENCE_FRONT, 'afmt': _SENTENCE_BACK})
+
+    model = _create_model(
+        generate_model_id("ClipLingo_" + deck_name),
+        'ClipLingo',
+        templates
+    )
+
     deck = genanki.Deck(
         deck_id=generate_model_id(deck_name),
         name=deck_name
     )
 
-    # 添加卡片
     for card in cards:
-        # 音频文件使用相对路径
         audio_name = os.path.basename(card.audio_path) if card.audio_path else ""
         screenshot_name = os.path.basename(card.screenshot_path) if card.screenshot_path else ""
-
-        # 构建字段
         screenshot_field = f'<img src="{screenshot_name}">' if screenshot_name else ""
         audio_field = f'[sound:{audio_name}]' if audio_name else ""
+        word = card.word or card.sentence  # 降级：无单词时用整句
 
         note = genanki.Note(
             model=model,
             fields=[
-                screenshot_field,
-                audio_field,
-                card.sentence,
-                card.translation,
-                card.notes
+                screenshot_field,   # Screenshot
+                audio_field,        # Audio
+                card.sentence,      # Sentence
+                card.translation,   # Translation
+                card.notes,         # Notes
+                word,               # Word
+                card.definition,    # Definition
             ]
         )
         deck.add_note(note)
@@ -237,7 +332,8 @@ def create_apkg(
     cards: list[dict],
     output_dir: str,
     audio_dir: str,
-    screenshot_dir: str
+    screenshot_dir: str,
+    card_styles: list[str] = None
 ) -> str:
     """
     创建完整的 .apkg 文件
@@ -248,14 +344,16 @@ def create_apkg(
         output_dir: 输出目录
         audio_dir: 音频目录
         screenshot_dir: 截图目录
+        card_styles: 卡片样式列表，如 ["sentence"]、["vocab"]、["sentence", "vocab"]
 
     Returns:
         输出的 .apkg 文件路径
     """
-    # 牌组名称
+    if card_styles is None:
+        card_styles = ["sentence"]
+
     deck_name = Path(video_name).stem
 
-    # 构建 CardData 列表
     card_data_list = []
     for i, c in enumerate(cards):
         print(f"卡片 {i}: audio_path={c.get('audio_path', 'N/A')}, screenshot_path={c.get('screenshot_path', 'N/A')}")
@@ -265,11 +363,12 @@ def create_apkg(
             translation=c.get("translation", ""),
             notes=c.get("notes", ""),
             audio_path=c.get("audio_path", ""),
-            screenshot_path=c.get("screenshot_path", "")
+            screenshot_path=c.get("screenshot_path", ""),
+            word=c.get("word", ""),
+            definition=c.get("definition", "")
         ))
 
-    # 创建牌组
-    deck = create_deck(deck_name, card_data_list)
+    deck = create_deck(deck_name, card_data_list, card_styles=card_styles)
 
     # 收集媒体文件
     audio_files = []

@@ -85,6 +85,8 @@ class ProcessedCard(BaseModel):
     sentence: str
     translation: str
     notes: str
+    word: Optional[str] = None
+    definition: Optional[str] = None
     start_sec: float
     end_sec: float
     audio_path: Optional[str] = None
@@ -124,6 +126,8 @@ class AIRecommendItem(BaseModel):
     reason: str
     translation: Optional[str] = None
     notes: Optional[str] = None
+    word: Optional[str] = None
+    definition: Optional[str] = None
 
 
 class AIRecommendResponse(BaseModel):

@@ -217,7 +217,8 @@ export const processAPI = {
     apiBase?: string,
     modelName?: string,
     paddingStartMs?: number,
-    paddingEndMs?: number
+    paddingEndMs?: number,
+    cardStyles?: string[]
   ): Promise<{ task_id: string; status: string }> => {
     const formData = new FormData();
     formData.append('video', videoFile);
@@ -240,6 +241,9 @@ export const processAPI = {
     }
     if (preProcessed && preProcessed.length > 0) {
       formData.append('pre_processed', JSON.stringify(preProcessed));
+    }
+    if (cardStyles && cardStyles.length > 0) {
+      formData.append('card_styles', JSON.stringify(cardStyles));
     }
 
     const response = await api.post<{ task_id: string; status: string }>(
