@@ -119,3 +119,9 @@ scripts\start.bat  # Windows
 ## 卡片示例
 
 ![卡片格式示例](docs/example.png)
+
+
+## License
+
+This project is licensed under the GNU General Public License v3.0.  
+See the [LICENSE](LICENSE) file for details.
