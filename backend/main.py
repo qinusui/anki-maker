@@ -14,7 +14,7 @@ if getattr(sys, 'frozen', False):
 else:
     # 正常 Python 运行的路径
     BASE_DIR = Path(__file__).parent
-    INSTALL_DIR = BASE_DIR
+    INSTALL_DIR = BASE_DIR.parent  # 项目根目录，与 process.py 的输出目录一致
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
