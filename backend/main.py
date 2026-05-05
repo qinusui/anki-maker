@@ -48,6 +48,10 @@ from api.cards import router as cards_router
 load_dotenv()
 
 # ---- 自动关闭机制 ----
+_server_start_time = time.time()
+_SHUTDOWN_COOLDOWN = 30  # 启动后 30 秒内的 shutdown 请求忽略（避免 HMR 重载误触）
+
+
 def _kill_processes():
     """读取 PID 文件并关闭前后端进程"""
     pid_file = Path(__file__).parent / 'pids.json'
@@ -117,9 +121,14 @@ app.include_router(cards_router, prefix="/api/cards", tags=["cards"])
 
 @app.post("/api/shutdown")
 async def shutdown():
-    """立即关闭所有服务"""
+    """关闭所有服务（仅打包模式生效，启动冷却期内忽略）"""
+    pid_file = BASE_DIR / 'pids.json'
+    if not pid_file.exists():
+        return {"message": "Ignored (dev mode)"}
+    if time.time() - _server_start_time < _SHUTDOWN_COOLDOWN:
+        return {"message": "Ignored (cooldown)"}
     _kill_processes()
-    return {"message": "Shutting down..."}
+    os._exit(0)
 
 
 # ---- 业务路由 ----
