@@ -116,3 +116,6 @@ scripts\start.bat  # Windows
 - **正面**：截图 + 音频（考察听力）
 - **背面**：原文 + 翻译 + 词汇注释
 
+## 界面预览
+
+![ClipLingo 界面预览](docs/example.png)
