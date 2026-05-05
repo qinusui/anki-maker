@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Film, Download, Info, Sparkles, ChevronDown, ChevronUp, MessageSquare, Sun, Moon, Monitor } from 'lucide-react';
 import { Button } from './components/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/Card';
@@ -179,6 +179,12 @@ function App() {
 
   // 已学单词记录
   const [learnedWords, setLearnedWords] = useState<Map<string, string>>(new Map());
+
+  // 规则筛选
+  const [filterMinDuration, setFilterMinDuration] = useState(1);
+  const [filterMaxDuration, setFilterMaxDuration] = useState(15);
+  const [filterExcludeLearned, setFilterExcludeLearned] = useState(true);
+  const [filterBlacklist, setFilterBlacklist] = useState('');
 
   // 页面关闭时通知后端退出
   useEffect(() => {
@@ -797,13 +803,51 @@ function App() {
     setSelectedIndices(newSelected);
   };
 
-  // 全选/取消全选
+  // 规则筛选后的字幕
+  const filteredSubtitles = useMemo(() => {
+    const blacklist = filterBlacklist
+      .split(/[,，\n]/)
+      .map(k => k.trim().toLowerCase())
+      .filter(k => k.length > 0);
+
+    return subtitles.filter(s => {
+      // 时长过滤
+      if (s.duration < filterMinDuration) return false;
+      if (filterMaxDuration > 0 && s.duration > filterMaxDuration) return false;
+
+      // 排除已学单词（需要有 AI 推荐结果）
+      if (filterExcludeLearned && recommendations) {
+        const rec = recommendations.get(s.index);
+        if (rec?.include && rec.word) {
+          const word = rec.word.trim().toLowerCase();
+          if (learnedWords.has(word)) return false;
+        }
+      }
+
+      // 关键词排除
+      if (blacklist.length > 0) {
+        const text = s.text.toLowerCase();
+        if (blacklist.some(k => text.includes(k))) return false;
+      }
+
+      return true;
+    });
+  }, [subtitles, filterMinDuration, filterMaxDuration, filterExcludeLearned, filterBlacklist, recommendations, learnedWords]);
+
+  // 全选/取消全选（作用于筛选结果）
   const toggleSelectAll = () => {
-    const allSelected = selectedIndices.size === subtitles.length;
+    const filteredIndices = new Set(filteredSubtitles.map(s => s.index));
+    const allSelected = filteredIndices.size > 0 && [...filteredIndices].every(i => selectedIndices.has(i));
     if (allSelected) {
-      setSelectedIndices(new Set());
+      // 取消筛选结果的选中，保留非筛选项的选中状态
+      const newSelected = new Set(selectedIndices);
+      for (const i of filteredIndices) newSelected.delete(i);
+      setSelectedIndices(newSelected);
     } else {
-      setSelectedIndices(new Set(subtitles.map(s => s.index)));
+      // 选中所有筛选结果
+      const newSelected = new Set(selectedIndices);
+      for (const i of filteredIndices) newSelected.add(i);
+      setSelectedIndices(newSelected);
     }
   };
 
@@ -1279,7 +1323,7 @@ function App() {
                   <span className="bg-primary-100 text-primary-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold dark:bg-primary-900/40 dark:text-primary-300">2</span>
                   筛选内容
                   <span className="text-sm font-normal text-gray-500 ml-2 dark:text-gray-400">
-                    (已选 {selectedIndices.size} / {subtitles.length})
+                    (已选 {selectedIndices.size} / {filteredSubtitles.length}{filteredSubtitles.length !== subtitles.length ? `，共 ${subtitles.length} 条` : ''})
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -1425,13 +1469,65 @@ function App() {
                   </div>
                 )}
 
+                {/* 规则筛选 */}
+                <div className="flex flex-wrap items-end gap-3 mb-4 p-3 bg-gray-50 rounded-lg dark:bg-gray-800/50">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">时长</label>
+                    <input
+                      type="number"
+                      value={filterMinDuration}
+                      onChange={e => setFilterMinDuration(Math.max(0, Number(e.target.value)))}
+                      className="w-14 px-1.5 py-1 border border-gray-300 rounded text-sm text-center dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      min={0}
+                      step={0.5}
+                    />
+                    <span className="text-xs text-gray-400">-</span>
+                    <input
+                      type="number"
+                      value={filterMaxDuration}
+                      onChange={e => setFilterMaxDuration(Math.max(0, Number(e.target.value)))}
+                      className="w-14 px-1.5 py-1 border border-gray-300 rounded text-sm text-center dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      min={0}
+                      step={0.5}
+                    />
+                    <span className="text-xs text-gray-400">秒</span>
+                  </div>
+
+                  {recommendations && learnedWords.size > 0 && (
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filterExcludeLearned}
+                        onChange={e => setFilterExcludeLearned(e.target.checked)}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-xs text-gray-600 dark:text-gray-400">排除已学</span>
+                    </label>
+                  )}
+
+                  <div className="flex items-center gap-1.5 flex-1 min-w-[160px]">
+                    <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">排除词</label>
+                    <input
+                      type="text"
+                      value={filterBlacklist}
+                      onChange={e => setFilterBlacklist(e.target.value)}
+                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      placeholder="逗号分隔，如: oh, well, yeah"
+                    />
+                  </div>
+
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    显示 {filteredSubtitles.length} / {subtitles.length}
+                  </span>
+                </div>
+
                 {/* 字幕表格 - 全宽 */}
                 <SubtitleTable
-                  subtitles={subtitles}
+                  subtitles={filteredSubtitles}
                   selectedIndices={selectedIndices}
                   onToggleSelection={toggleSelection}
                   onSelectAll={toggleSelectAll}
-                  isAllSelected={selectedIndices.size === subtitles.length}
+                  isAllSelected={filteredSubtitles.length > 0 && filteredSubtitles.every(s => selectedIndices.has(s.index))}
                   recommendations={recommendations}
                   isRecommending={isRecommending}
                   recommendBatch={recommendBatch}
