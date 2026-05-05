@@ -43,10 +43,40 @@ const PROCESSING_STEPS: ProcessingStep[] = [
   { id: 'pack', label: '打包 Anki 牌组', status: 'pending' },
 ];
 
-const PRESETS = {
+const LANGUAGES = [
+  { code: 'zh', name: '中文' },
+  { code: 'en', name: '英语' },
+  { code: 'ja', name: '日语' },
+  { code: 'ko', name: '韩语' },
+  { code: 'fr', name: '法语' },
+  { code: 'de', name: '德语' },
+  { code: 'es', name: '西班牙语' },
+  { code: 'it', name: '意大利语' },
+  { code: 'pt', name: '葡萄牙语' },
+  { code: 'ru', name: '俄语' },
+  { code: 'ar', name: '阿拉伯语' },
+  { code: 'th', name: '泰语' },
+  { code: 'vi', name: '越南语' },
+  { code: 'nl', name: '荷兰语' },
+  { code: 'sv', name: '瑞典语' },
+  { code: 'pl', name: '波兰语' },
+  { code: 'tr', name: '土耳其语' },
+  { code: 'hi', name: '印地语' },
+  { code: 'id', name: '印尼语' },
+] as const;
+
+function getLangName(code: string): string {
+  return LANGUAGES.find(l => l.code === code)?.name ?? code;
+}
+
+function buildPresetPrompt(template: string, sourceLanguage: string): string {
+  return template.replace(/\{source_language\}/g, getLangName(sourceLanguage));
+}
+
+const PRESET_TEMPLATES = {
   grammar: {
     label: '语法句型',
-    prompt: `你是英语学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
+    prompt: `你是{source_language}学习教材编写专家。对输入的字幕列表，每条判断是否值得作为学习材料：
 
 判断标准：
 - 有明确的语法知识点（如时态、从句、虚拟语气等）
@@ -56,10 +86,10 @@ const PRESETS = {
   },
   vocab: {
     label: '背单词',
-    prompt: `你是英语词汇教学专家。对输入的字幕列表，每条判断是否值得作为单词学习材料：
+    prompt: `你是{source_language}词汇教学专家。对输入的字幕列表，每条判断是否值得作为单词学习材料：
 
 判断标准：
-- 句子中包含高频核心词汇或学术词汇（如 TOEFL/IELTS/GRE 词汇）
+- 句子中包含高频核心词汇或学术词汇
 - 包含值得掌握的动词短语、介词搭配或习语
 - 包含一词多义、熟词僻义的实际用例
 - 单词在语境中有助于理解和记忆
@@ -69,9 +99,9 @@ const PRESETS = {
   },
 } as const;
 
-type PresetKey = keyof typeof PRESETS;
+type PresetKey = keyof typeof PRESET_TEMPLATES;
 
-const DEFAULT_RECOMMEND_PROMPT = PRESETS.grammar.prompt;
+const DEFAULT_RECOMMEND_PROMPT = PRESET_TEMPLATES.grammar.prompt;
 
 // 从 localStorage 读取 AI 配置（持久化）
 function loadAIConfig() {
@@ -88,6 +118,8 @@ function App() {
   const [apiBase, setApiBase] = useState(savedConfig?.apiBase || 'https://api.deepseek.com');
   const [modelName, setModelName] = useState(savedConfig?.modelName || 'deepseek-chat');
   const [apiKey, setApiKey] = useState(savedConfig?.apiKey || '');
+  const [sourceLanguage, setSourceLanguage] = useState<string>(savedConfig?.sourceLanguage || 'en');
+  const [targetLanguage, setTargetLanguage] = useState<string>(savedConfig?.targetLanguage || 'zh');
   const [configExpanded, setConfigExpanded] = useState(!savedConfig); // 首次展开
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ valid: boolean; message: string } | null>(null);
@@ -136,7 +168,7 @@ function App() {
   const transcribeAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [recommendBatch, setRecommendBatch] = useState(0);
   const [recommendTotalBatches, setRecommendTotalBatches] = useState(0);
-  const [customPrompt, setCustomPrompt] = useState<string>(DEFAULT_RECOMMEND_PROMPT);
+  const [customPrompt, setCustomPrompt] = useState<string>(buildPresetPrompt(DEFAULT_RECOMMEND_PROMPT, savedConfig?.sourceLanguage || 'en'));
   const [promptPreset, setPromptPreset] = useState<PresetKey>('grammar');
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [recommendBatchSize, setRecommendBatchSize] = useState(30);
@@ -183,8 +215,23 @@ function App() {
 
   // AI 配置变化时自动保存到 localStorage
   useEffect(() => {
-    localStorage.setItem('anki_ai_config', JSON.stringify({ apiBase, modelName, apiKey }));
-  }, [apiBase, modelName, apiKey]);
+    localStorage.setItem('anki_ai_config', JSON.stringify({ apiBase, modelName, apiKey, sourceLanguage, targetLanguage }));
+  }, [apiBase, modelName, apiKey, sourceLanguage, targetLanguage]);
+
+  // 源语言变化时，同步更新预设提示词中的语言名称
+  useEffect(() => {
+    for (const tmpl of Object.values(PRESET_TEMPLATES)) {
+      const built = buildPresetPrompt(tmpl.prompt, sourceLanguage);
+      // 如果当前 prompt 是任意一个预设的模板实例（语言名不同但结构相同），则更新
+      for (const lang of LANGUAGES) {
+        if (lang.code === sourceLanguage) continue;
+        if (customPrompt === buildPresetPrompt(tmpl.prompt, lang.code)) {
+          setCustomPrompt(built);
+          return;
+        }
+      }
+    }
+  }, [sourceLanguage]);
 
   // 转录进度动画
   useEffect(() => {
@@ -414,7 +461,9 @@ function App() {
         customPrompt || undefined,
         recommendBatchSize,
         apiBase || undefined,
-        modelName || undefined
+        modelName || undefined,
+        sourceLanguage,
+        targetLanguage
       );
 
       for await (const event of stream) {
@@ -490,7 +539,9 @@ function App() {
         customPrompt || undefined,
         recommendBatchSize,
         apiBase || undefined,
-        modelName || undefined
+        modelName || undefined,
+        sourceLanguage,
+        targetLanguage
       );
 
       for await (const event of stream) {
@@ -820,7 +871,7 @@ function App() {
                     <h4 className="font-semibold text-gray-900 mb-1 dark:text-gray-100">AI 进阶功能（可选）</h4>
                     <ul className="list-disc list-inside space-y-1 ml-2">
                       <li>配置 AI 后可使用「AI 推荐」智能筛选有学习价值的句子</li>
-                      <li>AI 自动翻译并生成词汇注释，卡片额外包含中文翻译和知识点</li>
+                      <li>AI 自动翻译并生成词汇注释，卡片额外包含翻译和知识点</li>
                       <li>支持 OpenAI / DeepSeek / Ollama 等兼容接口</li>
                       <li>配置自动保存到浏览器，刷新无需重新填写</li>
                     </ul>
@@ -1070,7 +1121,7 @@ function App() {
                       onClick={() => setConfigExpanded(true)}
                     >
                       <span className="text-sm text-gray-600 truncate dark:text-gray-400">
-                        {apiBase.replace(/^https?:\/\//, '')} / {modelName}
+                        {getLangName(sourceLanguage)} → {getLangName(targetLanguage)} / {modelName}
                         {apiKey ? ` / ***${apiKey.slice(-4)}` : ' / 未设置 Key'}
                       </span>
                       <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 dark:text-gray-500" />
@@ -1108,6 +1159,32 @@ function App() {
                           placeholder="输入你的 API Key"
                           className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                         />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">源语言</label>
+                          <select
+                            value={sourceLanguage}
+                            onChange={(e) => setSourceLanguage(e.target.value)}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                          >
+                            {LANGUAGES.map(l => (
+                              <option key={l.code} value={l.code}>{l.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">目标语言</label>
+                          <select
+                            value={targetLanguage}
+                            onChange={(e) => setTargetLanguage(e.target.value)}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                          >
+                            {LANGUAGES.map(l => (
+                              <option key={l.code} value={l.code}>{l.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -1250,12 +1327,12 @@ function App() {
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">提示词预设</label>
                       <div className="flex gap-2">
-                        {(Object.keys(PRESETS) as PresetKey[]).map((key) => (
+                        {(Object.keys(PRESET_TEMPLATES) as PresetKey[]).map((key) => (
                           <button
                             key={key}
                             onClick={() => {
                               setPromptPreset(key);
-                              setCustomPrompt(PRESETS[key].prompt);
+                              setCustomPrompt(buildPresetPrompt(PRESET_TEMPLATES[key].prompt, sourceLanguage));
                             }}
                             disabled={isRecommending}
                             className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
@@ -1264,7 +1341,7 @@ function App() {
                                 : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600'
                             }`}
                           >
-                            {PRESETS[key].label}
+                            {PRESET_TEMPLATES[key].label}
                           </button>
                         ))}
                       </div>
