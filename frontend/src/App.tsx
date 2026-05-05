@@ -124,7 +124,7 @@ function App() {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ valid: boolean; message: string } | null>(null);
   const [modelList, setModelList] = useState<string[] | null>(null);
-  const [minDuration, setMinDuration] = useState(1.0);
+  const minDuration = 1.0; // 由 Step 2 的时长筛选替代，此处保留用于后端过滤零时长字幕
   const [paddingStartMs, setPaddingStartMs] = useState(200);
   const [paddingEndMs, setPaddingEndMs] = useState(200);
   const [whisperModel, setWhisperModel] = useState('base');
@@ -1141,19 +1141,7 @@ function App() {
                   {/* 字幕处理配置 */}
                   <div className="p-4 bg-gray-50 rounded-lg space-y-3 dark:bg-gray-800">
                     <div className="text-xs font-medium text-gray-600 dark:text-gray-400">字幕处理配置</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">最短时长(s)</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0.5"
-                          max="5"
-                          value={minDuration}
-                          onChange={(e) => setMinDuration(parseFloat(e.target.value))}
-                          className="w-full px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                        />
-                      </div>
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">开头提前(ms)</label>
                         <input
