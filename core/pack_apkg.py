@@ -48,6 +48,64 @@ def create_deck(
     """
     model_id = generate_model_id("电影字幕卡_" + deck_name)
 
+    # 卡片样式
+    css = """\
+.card {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 18px;
+  text-align: center;
+  color: #2c3e50;
+  background-color: #f8f9fa;
+  margin: 0;
+  padding: 10px;
+}
+.container { max-width: 600px; margin: 0 auto; }
+.image-box img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-bottom: 10px;
+}
+.original { font-weight: 600; font-size: 1.2em; color: #000; margin-top: 15px; }
+.translation { color: #666; font-size: 0.95em; margin-top: 8px; }
+.notes {
+  text-align: left;
+  background: #fff;
+  border-left: 4px solid #007bff;
+  padding: 10px;
+  margin-top: 15px;
+  font-size: 0.9em;
+  border-radius: 4px;
+  white-space: pre-line;
+}
+.nightMode .card { background-color: #1e1e1e; color: #eee; }
+.nightMode .translation { color: #aaa; }
+.nightMode .notes { background: #2d2d2d; border-left-color: #375a7f; }"""
+
+    # 正面模板
+    qfmt = """\
+<div class="container">
+  <div class="image-box">{{Screenshot}}</div>
+  <div class="audio-box">{{Audio}}</div>
+</div>"""
+
+    # 背面模板
+    afmt = """\
+<div class="container">
+  <div class="image-box">{{Screenshot}}</div>
+  <hr id="answer">
+  <div class="text-content">
+    <div class="original">{{Sentence}}</div>
+    {{#Translation}}
+    <div class="translation">{{Translation}}</div>
+    {{/Translation}}
+    {{#Notes}}
+    <div class="notes">{{Notes}}</div>
+    {{/Notes}}
+  </div>
+</div>"""
+
     # 创建模型
     model = genanki.Model(
         model_id=model_id,
@@ -61,9 +119,10 @@ def create_deck(
         ],
         templates=[{
             'name': 'Card 1',
-            'qfmt': '{{Screenshot}}<br>{{Audio}}',
-            'afmt': '{{FrontSide}}<hr id="answer">{{Sentence}}<br>{{Translation}}<br>{{Notes}}',
-        }]
+            'qfmt': qfmt,
+            'afmt': afmt,
+        }],
+        css=css
     )
 
     # 创建牌组
