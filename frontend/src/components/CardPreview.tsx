@@ -251,27 +251,21 @@ export const CardPreview = ({ cards, cardStyles, currentIndex, onPrevious, onNex
         </button>
       </div>
 
-      {/* 正面（始终显示） */}
+      {/* 卡片：正面 → 翻转 → 背面 */}
       <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden dark:border-gray-600">
-        {previewStyle === 'vocab' ? <VocabFront card={card} /> : <SentenceFront card={card} />}
+        {showAnswer
+          ? (previewStyle === 'vocab' ? <VocabBack card={card} /> : <SentenceBack card={card} />)
+          : (previewStyle === 'vocab' ? <VocabFront card={card} /> : <SentenceFront card={card} />)
+        }
       </div>
 
       {/* 显示/隐藏答案 */}
-      {!showAnswer && (
-        <button
-          onClick={() => setShowAnswer(true)}
-          className="w-full py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
-        >
-          显示答案
-        </button>
-      )}
-
-      {/* 背面（点击后显示） */}
-      {showAnswer && (
-        <div className="border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
-          {previewStyle === 'vocab' ? <VocabBack card={card} /> : <SentenceBack card={card} />}
-        </div>
-      )}
+      <button
+        onClick={() => setShowAnswer(!showAnswer)}
+        className="w-full py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+      >
+        {showAnswer ? '回到正面' : '显示答案'}
+      </button>
 
       {/* 音频控制 */}
       <div className="flex items-center justify-center gap-3">
