@@ -491,6 +491,7 @@ function App() {
       );
 
       for await (const event of stream) {
+        console.log('[AI推荐] SSE事件:', event.type, event.type === 'batch' ? `batch=${event.batch} items=${event.items?.length}` : '');
         if (event.type === 'start') {
           setRecommendTotalBatches(event.total_batches!);
         } else if (event.type === 'batch') {
@@ -501,6 +502,7 @@ function App() {
             for (const item of event.items!) {
               next.set(item.index, item);
             }
+            console.log('[AI推荐] 批次', event.batch, '更新后 Map 大小:', next.size, '示例:', event.items?.[0]);
             return next;
           });
         } else if (event.type === 'done') {
@@ -514,7 +516,7 @@ function App() {
         // 收集失败项
         const failed = new Set<number>();
         for (const [index, rec] of prev) {
-          if (rec.reason.startsWith('处理失败:')) {
+          if (rec.reason?.startsWith('处理失败:')) {
             failed.add(index);
           }
         }
@@ -523,7 +525,7 @@ function App() {
         // 自动选中推荐的句子（排除失败项和已学单词）
         const recommendedIndices = Array.from(prev.values())
           .filter(r => {
-            if (!r.include || r.reason.startsWith('处理失败:')) return false;
+            if (!r.include || r.reason?.startsWith('处理失败:')) return false;
             // 跳过已学单词
             const word = r.word?.trim().toLowerCase();
             if (word && learnedWords.has(word)) return false;
@@ -609,7 +611,7 @@ function App() {
         if (!prev || prev.size === 0) return prev;
         const failed = new Set<number>();
         for (const [index, rec] of prev) {
-          if (rec.reason.startsWith('处理失败:')) {
+          if (rec.reason?.startsWith('处理失败:')) {
             failed.add(index);
           }
         }

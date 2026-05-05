@@ -434,11 +434,21 @@ async def _call_ai_batch_async(client, system_prompt: str, batch: list, model_na
                     ],
                     response_format={"type": "json_object"},
                     temperature=0.2,
-                    timeout=30.0,
+                    timeout=90.0,
                 )
             content = response.choices[0].message.content
             parsed = json.loads(content)
             items = _parse_ai_items(parsed)
+            # 确保每条都有必需字段
+            for i, item in enumerate(items):
+                if "index" not in item:
+                    item["index"] = batch[i]["index"] if i < len(batch) else 0
+                if "include" not in item:
+                    item["include"] = False
+                if "reason" not in item:
+                    item["reason"] = ""
+            included = sum(1 for i in items if i.get("include"))
+            print(f"    AI 返回 {len(items)} 条，推荐 {included} 条")
             return items, ""
         except Exception as e:
             err_msg = str(e) or type(e).__name__
@@ -584,7 +594,7 @@ async def ai_recommend_stream(request: AIRecommendRequest):
     model_name = request.model_name or "deepseek-chat"
 
     # 动态分批（按字符数）
-    batches = _dynamic_batches(subtitle_dicts, max_chars=3000)
+    batches = _dynamic_batches(subtitle_dicts, max_chars=1500)
     total_batches = len(batches)
     # 编号
     numbered_batches = [(i + 1, b) for i, b in enumerate(batches)]

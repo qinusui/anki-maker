@@ -127,7 +127,7 @@ export const SubtitleTable = ({
                       <span
                         className={cn(
                           'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
-                          rec.reason.startsWith('处理失败:')
+                          rec.reason?.startsWith('处理失败:')
                             ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
                             : isLearned
                               ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
@@ -137,7 +137,7 @@ export const SubtitleTable = ({
                         )}
                         title={isLearned ? `已学: ${rec.word}` : rec.reason}
                       >
-                        {rec.reason.startsWith('处理失败:') ? '失败' : isLearned ? '已学' : rec.include ? '推荐' : '跳过'}
+                        {rec.reason?.startsWith('处理失败:') ? '失败' : isLearned ? '已学' : rec.include ? '推荐' : '跳过'}
                       </span>
                     );
                   })()
