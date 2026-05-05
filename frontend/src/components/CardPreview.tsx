@@ -10,9 +10,152 @@ interface CardPreviewProps {
   onNext: () => void;
 }
 
+// 与 core/pack_apkg.py 中 _CSS 保持一致
+const ANKI_CSS = `
+.anki-card {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 18px;
+  text-align: center;
+  color: #2c3e50;
+  background-color: #f8f9fa;
+  margin: 0;
+  padding: 10px;
+}
+.anki-card .container { max-width: 600px; margin: 0 auto; }
+.anki-card .image-box img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-bottom: 10px;
+}
+.anki-card .original { font-weight: 600; font-size: 1.2em; color: #000; margin-top: 15px; }
+.anki-card .translation { color: #666; font-size: 0.95em; margin-top: 8px; }
+.anki-card .notes {
+  text-align: left;
+  background: #fff;
+  border-left: 4px solid #007bff;
+  padding: 10px;
+  margin-top: 15px;
+  font-size: 0.9em;
+  border-radius: 4px;
+  white-space: pre-line;
+}
+.anki-card .target-word {
+  font-size: 2.5em;
+  font-weight: 800;
+  color: #007bff;
+  margin: 40px 0 10px 0;
+}
+.anki-card .word-meaning {
+  font-size: 1.4em;
+  color: #28a745;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+.anki-card .hint {
+  color: #999;
+  font-size: 0.85em;
+  margin-top: 20px;
+}
+.anki-card .example-box {
+  background: #f0f2f5;
+  padding: 15px;
+  border-radius: 12px;
+  text-align: left;
+  margin-top: 15px;
+}
+.anki-card .example-box .tag {
+  display: inline-block;
+  font-size: 0.7em;
+  padding: 2px 8px;
+  background: #6c757d;
+  color: white;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+.anki-card .example-box .image-box img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+.anki-card .example-box .original {
+  font-weight: 600;
+  font-size: 1em;
+  color: #333;
+  margin: 8px 0;
+}
+.anki-card hr#answer {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 16px 0;
+}
+`;
+
+const SentenceFront = ({ card }: { card: ProcessedCard }) => (
+  <div className="anki-card">
+    <div className="container">
+      <div className="image-box">
+        {card.screenshot_path ? (
+          <img src={card.screenshot_path} alt="截图" />
+        ) : (
+          <div className="flex items-center justify-center w-full h-40 bg-gray-200 rounded-lg">
+            <ImageIcon className="w-8 h-8 text-gray-400" />
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+const SentenceBack = ({ card }: { card: ProcessedCard }) => (
+  <div className="anki-card">
+    <div className="container">
+      <div className="image-box">
+        {card.screenshot_path && <img src={card.screenshot_path} alt="截图" />}
+      </div>
+      <hr id="answer" />
+      <div className="text-content">
+        <div className="original">{card.sentence}</div>
+        {card.translation && <div className="translation">{card.translation}</div>}
+        {card.notes && <div className="notes">{card.notes}</div>}
+      </div>
+    </div>
+  </div>
+);
+
+const VocabFront = ({ card }: { card: ProcessedCard }) => (
+  <div className="anki-card">
+    <div className="container">
+      <div className="target-word">{card.word || card.sentence}</div>
+      <div className="hint">试着回想这个词在视频里的意思</div>
+    </div>
+  </div>
+);
+
+const VocabBack = ({ card }: { card: ProcessedCard }) => (
+  <div className="anki-card">
+    <div className="container">
+      <div className="target-word">{card.word || card.sentence}</div>
+      {card.definition && <div className="word-meaning">{card.definition}</div>}
+      <hr id="answer" />
+      <div className="example-box">
+        <div className="tag">CONTEXT / 例句</div>
+        {card.screenshot_path && (
+          <div className="image-box">
+            <img src={card.screenshot_path} alt="截图" />
+          </div>
+        )}
+        <div className="original">{card.sentence}</div>
+      </div>
+    </div>
+  </div>
+);
+
 export const CardPreview = ({ cards, cardStyles, currentIndex, onPrevious, onNext }: CardPreviewProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [previewStyle, setPreviewStyle] = useState<string>(cardStyles[0] || 'sentence');
+  const [showAnswer, setShowAnswer] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   if (cards.length === 0) {
@@ -41,9 +184,9 @@ export const CardPreview = ({ cards, cardStyles, currentIndex, onPrevious, onNex
     setIsPlaying(false);
   };
 
-  // 切换卡片时重置播放状态
   const handleChangeCard = (fn: () => void) => {
     setIsPlaying(false);
+    setShowAnswer(false);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -53,7 +196,9 @@ export const CardPreview = ({ cards, cardStyles, currentIndex, onPrevious, onNex
 
   return (
     <div className="space-y-4">
-      {/* 导航控制 + 样式切换 */}
+      <style>{ANKI_CSS}</style>
+
+      {/* 导航 + 样式切换 */}
       <div className="flex items-center justify-between">
         <button
           onClick={() => handleChangeCard(onPrevious)}
@@ -63,32 +208,36 @@ export const CardPreview = ({ cards, cardStyles, currentIndex, onPrevious, onNex
           <ChevronLeft className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
             卡片 {currentIndex + 1} / {cards.length}
           </span>
           {cardStyles.length > 1 && (
             <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-0.5">
-              <button
-                onClick={() => setPreviewStyle('sentence')}
-                className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
-                  previewStyle === 'sentence'
-                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400'
-                }`}
-              >
-                句型卡
-              </button>
-              <button
-                onClick={() => setPreviewStyle('vocab')}
-                className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
-                  previewStyle === 'vocab'
-                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400'
-                }`}
-              >
-                词汇卡
-              </button>
+              {cardStyles.includes('sentence') && (
+                <button
+                  onClick={() => { setPreviewStyle('sentence'); setShowAnswer(false); }}
+                  className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
+                    previewStyle === 'sentence'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  句型卡
+                </button>
+              )}
+              {cardStyles.includes('vocab') && (
+                <button
+                  onClick={() => { setPreviewStyle('vocab'); setShowAnswer(false); }}
+                  className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
+                    previewStyle === 'vocab'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}
+                >
+                  词汇卡
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -102,115 +251,48 @@ export const CardPreview = ({ cards, cardStyles, currentIndex, onPrevious, onNex
         </button>
       </div>
 
-      {/* 卡片正面 */}
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50 dark:border-gray-600 dark:bg-gray-800">
-        <div className="text-center">
-          {previewStyle === 'vocab' ? (
-            // 词汇卡正面：单词
-            <>
-              <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 my-6">
-                {card.word || card.sentence}
-              </div>
-              <div className="text-sm text-gray-400">试着回想这个词在视频里的意思</div>
-            </>
-          ) : (
-            // 句型卡正面：截图
-            <>
-              {card.screenshot_path ? (
-                <img
-                  src={card.screenshot_path}
-                  alt="截图"
-                  className="w-full max-w-md mx-auto mb-4 rounded-lg object-cover"
-                />
-              ) : (
-                <div className="w-48 h-32 bg-gray-200 rounded-lg mx-auto mb-4 flex items-center justify-center dark:bg-gray-700">
-                  <ImageIcon className="w-8 h-8 text-gray-400" />
-                </div>
-              )}
-            </>
-          )}
-
-          {/* 音频按钮 */}
-          {card.audio_path ? (
-            <div className="mt-2">
-              <audio
-                ref={audioRef}
-                src={card.audio_path}
-                onEnded={handleAudioEnded}
-                preload="auto"
-              />
-              <button
-                onClick={handlePlayPause}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                {isPlaying ? (
-                  <>
-                    <Pause className="w-4 h-4" />
-                    暂停
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" />
-                    播放音频
-                  </>
-                )}
-              </button>
-            </div>
-          ) : (
-            <button className="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed dark:bg-gray-600 dark:text-gray-400" disabled>
-              <Play className="w-4 h-4" />
-              无音频
-            </button>
-          )}
-        </div>
+      {/* 正面（始终显示） */}
+      <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden dark:border-gray-600">
+        {previewStyle === 'vocab' ? <VocabFront card={card} /> : <SentenceFront card={card} />}
       </div>
 
-      {/* 卡片背面 */}
-      <div className="border border-gray-200 rounded-lg p-6 space-y-4 dark:border-gray-700">
-        {previewStyle === 'vocab' ? (
-          // 词汇卡背面：释义 + 例句框
+      {/* 显示/隐藏答案 */}
+      {!showAnswer && (
+        <button
+          onClick={() => setShowAnswer(true)}
+          className="w-full py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+        >
+          显示答案
+        </button>
+      )}
+
+      {/* 背面（点击后显示） */}
+      {showAnswer && (
+        <div className="border border-gray-200 rounded-lg overflow-hidden dark:border-gray-700">
+          {previewStyle === 'vocab' ? <VocabBack card={card} /> : <SentenceBack card={card} />}
+        </div>
+      )}
+
+      {/* 音频控制 */}
+      <div className="flex items-center justify-center gap-3">
+        {card.audio_path ? (
           <>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-1 dark:text-gray-400">单词</h4>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{card.word || card.sentence}</p>
-            </div>
-            {card.definition && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-500 mb-1 dark:text-gray-400">释义</h4>
-                <p className="text-green-600 dark:text-green-400 text-lg font-medium">{card.definition}</p>
-              </div>
-            )}
-            <hr className="border-gray-200 dark:border-gray-600" />
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-xl p-4 text-left">
-              <span className="inline-block text-xs px-2 py-0.5 bg-gray-500 text-white rounded mb-2">
-                CONTEXT / 例句
-              </span>
-              {card.screenshot_path && (
-                <img
-                  src={card.screenshot_path}
-                  alt="截图"
-                  className="w-full rounded-lg object-cover mb-2"
-                />
-              )}
-              <p className="text-gray-900 dark:text-gray-100 font-semibold">{card.sentence}</p>
-            </div>
+            <audio
+              ref={audioRef}
+              src={card.audio_path}
+              onEnded={handleAudioEnded}
+              preload="auto"
+            />
+            <button
+              onClick={handlePlayPause}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 text-sm"
+            >
+              {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              {isPlaying ? '暂停' : '播放音频'}
+            </button>
           </>
         ) : (
-          // 句型卡背面：原文 + 翻译 + 注释
-          <>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-1 dark:text-gray-400">原文</h4>
-              <p className="text-gray-900 dark:text-gray-100">{card.sentence}</p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-1 dark:text-gray-400">翻译</h4>
-              <p className="text-gray-700 dark:text-gray-300">{card.translation}</p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-1 dark:text-gray-400">词汇注释</h4>
-              <p className="text-gray-700 whitespace-pre-line dark:text-gray-300">{card.notes}</p>
-            </div>
-          </>
+          <span className="text-sm text-gray-400">无音频</span>
         )}
       </div>
     </div>
