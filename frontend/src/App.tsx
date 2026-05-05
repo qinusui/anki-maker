@@ -177,6 +177,9 @@ function App() {
   const [whisperPluginInstalled, setWhisperPluginInstalled] = useState<boolean | null>(null);
   const [whisperMode, setWhisperMode] = useState<string>('');
 
+  // 已学单词记录
+  const [learnedWords, setLearnedWords] = useState<Map<string, string>>(new Map());
+
   // 页面关闭时通知后端退出
   useEffect(() => {
     const handleUnload = () => {
@@ -184,6 +187,22 @@ function App() {
     };
     window.addEventListener('beforeunload', handleUnload);
     return () => window.removeEventListener('beforeunload', handleUnload);
+  }, []);
+
+  // 加载已学单词记录
+  useEffect(() => {
+    fetch('/api/subtitles/learned-words')
+      .then(r => r.json())
+      .then(data => {
+        if (data.words) {
+          const map = new Map<string, string>();
+          for (const [word, def] of Object.entries(data.words)) {
+            map.set(word, def as string);
+          }
+          setLearnedWords(map);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // 检测 ffmpeg 和 Whisper 插件安装状态（延迟 3 秒等后端就绪）
@@ -478,7 +497,7 @@ function App() {
         }
       }
 
-      // 流结束后，收集失败项并自动选中推荐的句子
+      // 流结束后，收集失败项、标记已学单词、自动选中推荐的句子
       setRecommendations(prev => {
         if (!prev || prev.size === 0) return prev;
         // 收集失败项
@@ -490,9 +509,15 @@ function App() {
         }
         setFailedIndices(failed);
 
-        // 自动选中推荐的句子（排除失败项）
+        // 自动选中推荐的句子（排除失败项和已学单词）
         const recommendedIndices = Array.from(prev.values())
-          .filter(r => r.include && !r.reason.startsWith('处理失败:'))
+          .filter(r => {
+            if (!r.include || r.reason.startsWith('处理失败:')) return false;
+            // 跳过已学单词
+            const word = r.word?.trim().toLowerCase();
+            if (word && learnedWords.has(word)) return false;
+            return true;
+          })
           .map(r => r.index);
         setSelectedIndices(new Set(recommendedIndices));
         return prev;
@@ -509,7 +534,12 @@ function App() {
   const selectRecommended = () => {
     if (!recommendations) return;
     const recommendedIndices = Array.from(recommendations.values())
-      .filter(r => r.include)
+      .filter(r => {
+        if (!r.include) return false;
+        const word = r.word?.trim().toLowerCase();
+        if (word && learnedWords.has(word)) return false;
+        return true;
+      })
       .map(r => r.index);
     setSelectedIndices(new Set(recommendedIndices));
   };
@@ -1406,6 +1436,7 @@ function App() {
                   isRecommending={isRecommending}
                   recommendBatch={recommendBatch}
                   recommendTotalBatches={recommendTotalBatches}
+                  learnedWords={learnedWords}
                 />
 
                 {/* 底部按钮 */}

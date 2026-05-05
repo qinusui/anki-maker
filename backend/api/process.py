@@ -193,6 +193,19 @@ async def upload_and_process(
             apkg_filename = Path(result["apkg_path"]).name
             cards = _build_cards(result.get("processed", []))
 
+            # 记录已学单词到进度数据库
+            try:
+                from services.progress import mark_words_learned
+                words_to_record = [
+                    {"word": p.get("word", ""), "definition": p.get("definition", "")}
+                    for p in result.get("processed", [])
+                    if p.get("word")
+                ]
+                if words_to_record:
+                    mark_words_learned(words_to_record, source_video=video.filename or "")
+            except Exception as e:
+                print(f"记录已学单词失败（不影响主流程）: {e}")
+
             with task_store_lock:
                 task_store[task_id].update({
                     "status": "completed",

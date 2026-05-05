@@ -922,3 +922,11 @@ async def get_example_subtitles():
         total=3,
         filtered=3
     )
+
+
+@router.get("/learned-words")
+async def get_learned_words():
+    """返回已学单词列表，供前端过滤"""
+    from services.progress import get_learned_words, get_learned_count
+    words = get_learned_words()
+    return {"words": words, "count": len(words)}

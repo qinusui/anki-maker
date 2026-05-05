@@ -12,6 +12,7 @@ interface SubtitleTableProps {
   isRecommending: boolean;
   recommendBatch: number;
   recommendTotalBatches: number;
+  learnedWords?: Map<string, string>;
 }
 
 export const SubtitleTable = ({
@@ -24,6 +25,7 @@ export const SubtitleTable = ({
   isRecommending,
   recommendBatch,
   recommendTotalBatches,
+  learnedWords,
 }: SubtitleTableProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -118,19 +120,27 @@ export const SubtitleTable = ({
               </div>
               <div className="col-span-2 flex items-center">
                 {rec ? (
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
-                      rec.reason.startsWith('处理失败:')
-                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
-                        : rec.include
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                          : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-                    )}
-                    title={rec.reason}
-                  >
-                    {rec.reason.startsWith('处理失败:') ? '失败' : rec.include ? '推荐' : '跳过'}
-                  </span>
+                  (() => {
+                    const word = rec.word?.trim().toLowerCase();
+                    const isLearned = rec.include && word && learnedWords?.has(word);
+                    return (
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
+                          rec.reason.startsWith('处理失败:')
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                            : isLearned
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                              : rec.include
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                        )}
+                        title={isLearned ? `已学: ${rec.word}` : rec.reason}
+                      >
+                        {rec.reason.startsWith('处理失败:') ? '失败' : isLearned ? '已学' : rec.include ? '推荐' : '跳过'}
+                      </span>
+                    );
+                  })()
                 ) : (
                   <span className="text-xs text-gray-400">-</span>
                 )}
