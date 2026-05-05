@@ -595,16 +595,16 @@ async def ai_recommend_stream(request: AIRecommendRequest):
         client = AsyncOpenAI(api_key=api_key, base_url=api_base)
         yield f"data: {json.dumps({'type': 'start', 'total_batches': total_batches})}\n\n"
 
-        # 提交所有批次为异步任务
-        tasks = {
-            asyncio.create_task(_call_ai_batch_async(client, system_prompt, batch, model_name, semaphore)): (num, batch)
-            for num, batch in numbered_batches
-        }
+        # wrapper：结果自带批次号和原始数据
+        async def run_batch(num: int, batch: list):
+            items, error = await _call_ai_batch_async(client, system_prompt, batch, model_name, semaphore)
+            return num, batch, items, error
+
+        tasks = [asyncio.create_task(run_batch(num, batch)) for num, batch in numbered_batches]
 
         completed = 0
         for coro in asyncio.as_completed(tasks):
-            num, batch = tasks[coro]
-            items, error = await coro
+            num, batch, items, error = await coro
             if not items:
                 items = [{"index": item["index"], "include": False, "reason": f"处理失败: {error}"} for item in batch]
             completed += 1
