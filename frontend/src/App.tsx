@@ -172,7 +172,7 @@ function App() {
   const [promptPreset, setPromptPreset] = useState<PresetKey>('grammar');
   const [cardStyles, setCardStyles] = useState<Set<CardStyle>>(new Set(['sentence']));
   const [showPromptEditor, setShowPromptEditor] = useState(false);
-  const [recommendBatchSize, setRecommendBatchSize] = useState(30);
+  const recommendBatchSize = 30;
   const [ffmpegInstalled, setFFmpegInstalled] = useState<boolean | null>(null);
   const [whisperPluginInstalled, setWhisperPluginInstalled] = useState<boolean | null>(null);
   const [whisperMode, setWhisperMode] = useState<string>('');
@@ -1368,21 +1368,6 @@ function App() {
                 {/* 提示词编辑器 */}
                 {showPromptEditor && (
                   <div className="mb-4 p-4 bg-gray-50 rounded-lg space-y-3 dark:bg-gray-800">
-                    <div className="flex items-center gap-3">
-                      <div className="w-32">
-                        <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">每批数量</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={100}
-                          value={recommendBatchSize}
-                          onChange={(e) => setRecommendBatchSize(parseInt(e.target.value) || 30)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                          disabled={isRecommending}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-400 mt-4 dark:text-gray-500">1-100，越大越快但可能超时</span>
-                    </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-gray-400">提示词预设</label>
                       <div className="flex gap-2">
