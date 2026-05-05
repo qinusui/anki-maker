@@ -520,20 +520,43 @@ async def ai_recommend_stream(request: AIRecommendRequest):
     batch_size = max(1, min(100, request.batch_size))
     total_batches = math.ceil(len(subtitle_dicts) / batch_size)
 
+    max_concurrent = 3  # 并行批次数
+
     def event_generator():
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         client = OpenAI(api_key=api_key, base_url=api_base)
         yield f"data: {json.dumps({'type': 'start', 'total_batches': total_batches})}\n\n"
 
+        # 构建所有批次
+        batches = []
         for i in range(0, len(subtitle_dicts), batch_size):
             batch = subtitle_dicts[i:i + batch_size]
             batch_num = i // batch_size + 1
-            print(f"  AI 推荐流式：第 {batch_num}/{total_batches} 批")
+            batches.append((batch_num, batch))
 
-            items, error = _call_ai_batch(client, system_prompt, batch, model_name)
-            if not items:
-                items = [{"index": item["index"], "include": False, "reason": f"处理失败: {error}"} for item in batch]
+        # 分组并行处理，每组 max_concurrent 个批次
+        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+            for group_start in range(0, len(batches), max_concurrent):
+                group = batches[group_start:group_start + max_concurrent]
+                print(f"  AI 推荐流式：并行处理第 {group[0][0]}-{group[-1][0]}/{total_batches} 批")
 
-            yield f"data: {json.dumps({'type': 'batch', 'batch': batch_num, 'items': items}, ensure_ascii=False)}\n\n"
+                # 提交本组所有批次
+                future_to_batch = {
+                    executor.submit(_call_ai_batch, client, system_prompt, b, model_name): (num, b)
+                    for num, b in group
+                }
+
+                # 按批次号顺序 yield 结果
+                results = {}
+                for future in as_completed(future_to_batch):
+                    batch_num, batch = future_to_batch[future]
+                    items, error = future.result()
+                    if not items:
+                        items = [{"index": item["index"], "include": False, "reason": f"处理失败: {error}"} for item in batch]
+                    results[batch_num] = items
+
+                for num, _ in group:
+                    yield f"data: {json.dumps({'type': 'batch', 'batch': num, 'items': results[num]}, ensure_ascii=False)}\n\n"
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
