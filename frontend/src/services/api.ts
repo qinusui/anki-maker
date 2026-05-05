@@ -78,12 +78,15 @@ export const subtitleAPI = {
     customPrompt?: string,
     batchSize?: number,
     apiBase?: string,
-    modelName?: string
+    modelName?: string,
+    sourceLanguage?: string,
+    targetLanguage?: string
   ): Promise<{ task_id: string; status: string }> => {
     const response = await api.post<{ task_id: string; status: string }>(
       '/api/subtitles/ai-recommend',
       { subtitles, api_key: apiKey || undefined, custom_prompt: customPrompt || undefined,
-        batch_size: batchSize ?? 30, api_base: apiBase || undefined, model_name: modelName || undefined }
+        batch_size: batchSize ?? 30, api_base: apiBase || undefined, model_name: modelName || undefined,
+        source_language: sourceLanguage || 'en', target_language: targetLanguage || 'zh' }
     );
     return response.data;
   },
@@ -107,7 +110,9 @@ export const subtitleAPI = {
     customPrompt?: string,
     batchSize?: number,
     apiBase?: string,
-    modelName?: string
+    modelName?: string,
+    sourceLanguage?: string,
+    targetLanguage?: string
   ): AsyncGenerator<{ type: string; total_batches?: number; batch?: number; items?: any[] }> {
     const response = await fetch(`${API_BASE_URL}/api/subtitles/ai-recommend-stream`, {
       method: 'POST',
@@ -118,7 +123,9 @@ export const subtitleAPI = {
         custom_prompt: customPrompt || undefined,
         batch_size: batchSize ?? 30,
         api_base: apiBase || undefined,
-        model_name: modelName || undefined
+        model_name: modelName || undefined,
+        source_language: sourceLanguage || 'en',
+        target_language: targetLanguage || 'zh'
       })
     });
 

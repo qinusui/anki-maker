@@ -10,14 +10,18 @@ from dotenv import load_dotenv
 # 加载 .env 配置
 load_dotenv()
 
+LANGUAGE_NAMES = {
+    "zh": "中文", "en": "英语", "ja": "日语", "ko": "韩语",
+    "fr": "法语", "de": "德语", "es": "西班牙语", "it": "意大利语",
+    "pt": "葡萄牙语", "ru": "俄语", "ar": "阿拉伯语", "th": "泰语",
+    "vi": "越南语", "nl": "荷兰语", "sv": "瑞典语", "pl": "波兰语",
+    "tr": "土耳其语", "hi": "印地语", "id": "印尼语", "uk": "乌克兰语",
+}
 
-class AIProcessor:
-    """AI 处理器"""
-
-    SYSTEM_PROMPT = """你是英语学习教材编写专家。为输入的字幕列表的每一条提供中文翻译和知识点注释。
+SYSTEM_PROMPT_TEMPLATE = """你是{source_language}学习教材编写专家。为输入的字幕列表的每一条提供{target_language}翻译和知识点注释。
 
 返回格式（JSON对象）：
-{"items": [{"index": 数字, "include": true, "translation": "中文翻译", "notes": "重点词汇-释义"}, ...]}
+{{"items": [{{"index": 数字, "include": true, "translation": "{target_language}翻译", "notes": "重点词汇-释义"}}]}}
 
 注意：
 - 必须返回一个 JSON 对象，items 是数组
@@ -25,7 +29,12 @@ class AIProcessor:
 - translation 和 notes 必填，不可为空
 - 保持原文顺序输出，每条都必须有 index 字段"""
 
-    def __init__(self, api_key: str = None, base_url: str = None, model_name: str = None):
+
+class AIProcessor:
+    """AI 处理器"""
+
+    def __init__(self, api_key: str = None, base_url: str = None, model_name: str = None,
+                 source_language: str = "en", target_language: str = "zh"):
         """
         初始化 AI 处理器
 
@@ -33,12 +42,19 @@ class AIProcessor:
             api_key: API Key，默认从环境变量读取
             base_url: API 地址，默认 https://api.deepseek.com
             model_name: 模型名称，默认 deepseek-chat
+            source_language: 源语言代码，默认 en
+            target_language: 目标语言代码，默认 zh
         """
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         if not self.api_key:
             raise ValueError("需要设置 DEEPSEEK_API_KEY 环境变量或在 .env 文件中配置")
         self.client = OpenAI(api_key=self.api_key, base_url=base_url or "https://api.deepseek.com")
         self.model_name = model_name or "deepseek-chat"
+        src_name = LANGUAGE_NAMES.get(source_language, source_language)
+        tgt_name = LANGUAGE_NAMES.get(target_language, target_language)
+        self.system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+            source_language=src_name, target_language=tgt_name
+        )
 
     def process_batch(self, subtitles: list[dict], batch_size: int = 30, system_prompt: str = None) -> list[dict]:
         """
@@ -64,7 +80,7 @@ class AIProcessor:
                 response = self.client.chat.completions.create(
                     model=self.model_name,
                     messages=[
-                        {"role": "system", "content": system_prompt or self.SYSTEM_PROMPT},
+                        {"role": "system", "content": system_prompt or self.system_prompt},
                         {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
                     ],
                     response_format={"type": "json_object"},
@@ -99,7 +115,8 @@ class AIProcessor:
 
 
 def process_subtitles_with_ai(subtitles: list, api_key: str = None,
-                              api_base: str = None, model_name: str = None) -> list[dict]:
+                              api_base: str = None, model_name: str = None,
+                              source_language: str = "en", target_language: str = "zh") -> list[dict]:
     """
     批量处理字幕列表
 
@@ -108,11 +125,13 @@ def process_subtitles_with_ai(subtitles: list, api_key: str = None,
         api_key: API Key
         api_base: API 地址（可选）
         model_name: 模型名称（可选）
+        source_language: 源语言代码（默认 en）
+        target_language: 目标语言代码（默认 zh）
 
     Returns:
         处理后的完整数据列表
     """
-    processor = AIProcessor(api_key, api_base, model_name)
+    processor = AIProcessor(api_key, api_base, model_name, source_language, target_language)
 
     # 转换为 dict 列表
     subtitle_dicts = [

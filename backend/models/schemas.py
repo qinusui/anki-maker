@@ -113,6 +113,8 @@ class AIRecommendRequest(BaseModel):
     model_name: Optional[str] = None
     custom_prompt: Optional[str] = None
     batch_size: int = 30
+    source_language: str = Field(default="en", description="源语言代码，如 en、ja、ko")
+    target_language: str = Field(default="zh", description="目标语言代码，如 zh、en、ja")
 
 
 class AIRecommendItem(BaseModel):
