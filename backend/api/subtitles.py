@@ -328,7 +328,7 @@ _recommend_lock = _threading.Lock()
 # AI 批次调用常量
 _MAX_RETRIES = 3
 _RETRY_DELAYS = [2, 5, 10]  # 秒
-_TRANSIENT_KW = ("connection", "timeout", "rate limit", "server error",
+_TRANSIENT_KW = ("connection", "timeout", "timeouterror", "rate limit", "server error",
                  "503", "502", "500", "429", "unreachable", "refused",
                  "reset by peer", "too many requests")
 
@@ -419,33 +419,33 @@ def _dynamic_batches(subtitle_dicts: list, max_chars: int = 3000) -> list[list]:
 async def _call_ai_batch_async(client, system_prompt: str, batch: list, model_name: str,
                                semaphore: asyncio.Semaphore) -> tuple[list, str]:
     """
-    异步调用 AI API 处理单批次（含超时 + 指数退避抖动重试）。
+    异步调用 AI API 处理单批次（指数退避抖动重试，SDK 自带 30s 超时）。
     """
     import random
 
     for attempt in range(_MAX_RETRIES + 1):
         try:
             async with semaphore:
-                response = await asyncio.wait_for(
-                    client.chat.completions.create(
-                        model=model_name,
-                        messages=[
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
-                        ],
-                        response_format={"type": "json_object"},
-                        temperature=0.2,
-                    ),
-                    timeout=30.0
+                response = await client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.2,
+                    timeout=30.0,
                 )
             content = response.choices[0].message.content
             parsed = json.loads(content)
             items = _parse_ai_items(parsed)
             return items, ""
         except Exception as e:
-            last_error = _tr(str(e))
-            if _is_transient(str(e)) and attempt < _MAX_RETRIES:
+            err_msg = str(e) or type(e).__name__
+            last_error = _tr(err_msg)
+            if _is_transient(err_msg) and attempt < _MAX_RETRIES:
                 delay = min(2 ** attempt + random.random(), 30)
+                print(f"    批次重试 {attempt+1}/{_MAX_RETRIES}，等待 {delay:.1f}s: {err_msg}")
                 await asyncio.sleep(delay)
             else:
                 return [], last_error
