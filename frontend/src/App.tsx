@@ -177,20 +177,13 @@ function App() {
   const [whisperPluginInstalled, setWhisperPluginInstalled] = useState<boolean | null>(null);
   const [whisperMode, setWhisperMode] = useState<string>('');
 
-  // 每 3 秒发送心跳（延迟 6 秒等后端完全就绪）
+  // 页面关闭时通知后端退出
   useEffect(() => {
-    const sendHeartbeat = () => {
-      fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+    const handleUnload = () => {
+      navigator.sendBeacon('/api/shutdown');
     };
-    const timer = setTimeout(() => {
-      sendHeartbeat();
-      const interval = setInterval(sendHeartbeat, 3000);
-      (window as any).__heartbeatInterval = interval;
-    }, 6000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval((window as any).__heartbeatInterval);
-    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
   }, []);
 
   // 检测 ffmpeg 和 Whisper 插件安装状态（延迟 3 秒等后端就绪）

@@ -17,14 +17,11 @@ else:
     INSTALL_DIR = BASE_DIR.parent  # 项目根目录，与 process.py 的输出目录一致
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pathlib import Path
-from typing import List, Optional
 import uvicorn
-import shutil
 import os
 import json
 import signal
@@ -34,9 +31,9 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 
-# 静默心跳和轮询日志
+# 静默轮询日志
 class PollingFilter(logging.Filter):
-    _silent_paths = ('/api/heartbeat', '/progress/', '/ai-recommend/progress/', '/transcribe/progress/')
+    _silent_paths = ('/progress/', '/ai-recommend/progress/', '/transcribe/progress/')
 
     def filter(self, record):
         msg = record.getMessage()
@@ -51,11 +48,6 @@ from api.cards import router as cards_router
 load_dotenv()
 
 # ---- 自动关闭机制 ----
-_last_heartbeat = time.time() + 120
-_shutdown_lock = threading.Lock()
-HEARTBEAT_TIMEOUT = 20  # 20 秒无心跳才判定关闭，避免处理高负载时误杀
-
-
 def _kill_processes():
     """读取 PID 文件并关闭前后端进程"""
     pid_file = Path(__file__).parent / 'pids.json'
@@ -77,24 +69,8 @@ def _kill_processes():
     pid_file.unlink(missing_ok=True)
 
 
-def _shutdown_watcher():
-    """后台线程：20 秒无心跳则自动关闭所有服务"""
-    while True:
-        time.sleep(5)
-        with _shutdown_lock:
-            if time.time() - _last_heartbeat > HEARTBEAT_TIMEOUT:
-                print(f"[自动关闭] 检测到页面已关闭 ({HEARTBEAT_TIMEOUT}s 无心跳)，正在停止所有服务...")
-                _kill_processes()
-                os._exit(0)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 仅在 start-all.py 启动时（存在 PID 文件）且在真正服务进程（非 reloader）中启用
-    _pid_file = BASE_DIR / 'pids.json'
-    if _pid_file.exists():
-        _watcher_thread = threading.Thread(target=_shutdown_watcher, daemon=True)
-        _watcher_thread.start()
     yield
 
 
@@ -137,14 +113,6 @@ if frontend_dist.exists():
 app.include_router(subtitles_router, prefix="/api/subtitles", tags=["subtitles"])
 app.include_router(process_router, prefix="/api/process", tags=["process"])
 app.include_router(cards_router, prefix="/api/cards", tags=["cards"])
-
-
-@app.post("/api/heartbeat")
-async def heartbeat():
-    global _last_heartbeat
-    with _shutdown_lock:
-        _last_heartbeat = time.time()
-    return {"status": "ok"}
 
 
 @app.post("/api/shutdown")
