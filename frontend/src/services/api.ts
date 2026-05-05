@@ -112,7 +112,8 @@ export const subtitleAPI = {
     apiBase?: string,
     modelName?: string,
     sourceLanguage?: string,
-    targetLanguage?: string
+    targetLanguage?: string,
+    signal?: AbortSignal
   ): AsyncGenerator<{ type: string; total_batches?: number; batch?: number; items?: any[] }> {
     const response = await fetch(`${API_BASE_URL}/api/subtitles/ai-recommend-stream`, {
       method: 'POST',
@@ -126,7 +127,8 @@ export const subtitleAPI = {
         model_name: modelName || undefined,
         source_language: sourceLanguage || 'en',
         target_language: targetLanguage || 'zh'
-      })
+      }),
+      signal
     });
 
     if (!response.ok) {

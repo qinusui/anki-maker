@@ -157,6 +157,7 @@ function App() {
   const transcribingRef = useRef(false);
   const transcribedVideoName = useRef<string | null>(null);
   const step2Ref = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const scrollToStep2 = () => {
     setTimeout(() => step2Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -473,6 +474,9 @@ function App() {
     setRecommendBatch(0);
     setRecommendTotalBatches(0);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const stream = subtitleAPI.startRecommendStream(
         subtitles.filter(s => selectedIndices.has(s.index)),
@@ -482,7 +486,8 @@ function App() {
         apiBase || undefined,
         modelName || undefined,
         sourceLanguage,
-        targetLanguage
+        targetLanguage,
+        controller.signal
       );
 
       for await (const event of stream) {
@@ -530,8 +535,12 @@ function App() {
       });
 
     } catch (error) {
-      console.error('AI 推荐失败:', error);
-      alert('AI 推荐失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('AI 推荐已中止');
+      } else {
+        console.error('AI 推荐失败:', error);
+        alert('AI 推荐失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      }
       setIsRecommending(false);
     }
   };
@@ -562,6 +571,9 @@ function App() {
     setRecommendBatch(0);
     setRecommendTotalBatches(0);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const stream = subtitleAPI.startRecommendStream(
         failedSubtitles,
@@ -571,7 +583,8 @@ function App() {
         apiBase || undefined,
         modelName || undefined,
         sourceLanguage,
-        targetLanguage
+        targetLanguage,
+        controller.signal
       );
 
       for await (const event of stream) {
@@ -605,8 +618,12 @@ function App() {
       });
 
     } catch (error) {
-      console.error('重试失败:', error);
-      alert('重试失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('重试已中止');
+      } else {
+        console.error('重试失败:', error);
+        alert('重试失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      }
       setIsRecommending(false);
     }
   };
@@ -1331,6 +1348,15 @@ function App() {
                         : 'AI 分析中...'
                       : 'AI 推荐'}
                   </Button>
+                  {isRecommending && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => abortControllerRef.current?.abort()}
+                    >
+                      停止
+                    </Button>
+                  )}
                   {recommendations && (
                     <Button
                       variant="ghost"

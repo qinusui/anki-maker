@@ -386,6 +386,72 @@ def _call_ai_batch(client, system_prompt: str, batch: list, model_name: str) -> 
     return [], last_error
 
 
+def _dynamic_batches(subtitle_dicts: list, max_chars: int = 3000) -> list[list]:
+    """按字符数动态分批，避免长短不一导致的负载不均"""
+    batches = []
+    current_batch = []
+    current_chars = 0
+
+    for item in subtitle_dicts:
+        item_chars = len(item.get("text", ""))
+        # 单条超长字幕单独成批
+        if item_chars > max_chars:
+            if current_batch:
+                batches.append(current_batch)
+                current_batch = []
+                current_chars = 0
+            batches.append([item])
+            continue
+        # 累加超过阈值则切新批
+        if current_batch and current_chars + item_chars > max_chars:
+            batches.append(current_batch)
+            current_batch = []
+            current_chars = 0
+        current_batch.append(item)
+        current_chars += item_chars
+
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches
+
+
+async def _call_ai_batch_async(client, system_prompt: str, batch: list, model_name: str,
+                               semaphore: asyncio.Semaphore) -> tuple[list, str]:
+    """
+    异步调用 AI API 处理单批次（含超时 + 指数退避抖动重试）。
+    """
+    import random
+
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            async with semaphore:
+                response = await asyncio.wait_for(
+                    client.chat.completions.create(
+                        model=model_name,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": json.dumps(batch, ensure_ascii=False)}
+                        ],
+                        response_format={"type": "json_object"},
+                        temperature=0.2,
+                    ),
+                    timeout=30.0
+                )
+            content = response.choices[0].message.content
+            parsed = json.loads(content)
+            items = _parse_ai_items(parsed)
+            return items, ""
+        except Exception as e:
+            last_error = _tr(str(e))
+            if _is_transient(str(e)) and attempt < _MAX_RETRIES:
+                delay = min(2 ** attempt + random.random(), 30)
+                await asyncio.sleep(delay)
+            else:
+                return [], last_error
+    return [], last_error
+
+
 def _run_ai_recommend(task_id: str, subtitle_dicts: list, api_key: str, system_prompt: str,
                       batch_size: int = 30, api_base: str = "https://api.deepseek.com",
                       model_name: str = "deepseek-chat"):
@@ -502,9 +568,8 @@ async def ai_recommend_progress(task_id: str):
 
 @router.post("/ai-recommend-stream")
 async def ai_recommend_stream(request: AIRecommendRequest):
-    """AI 推荐 — SSE 流式返回每批结果"""
-    import math
-    from openai import OpenAI
+    """AI 推荐 — 全异步 SSE 流式返回每批结果"""
+    from openai import AsyncOpenAI
 
     api_key = request.api_key or os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
@@ -517,46 +582,34 @@ async def ai_recommend_stream(request: AIRecommendRequest):
     ]
     api_base = request.api_base or "https://api.deepseek.com"
     model_name = request.model_name or "deepseek-chat"
-    batch_size = max(1, min(100, request.batch_size))
-    total_batches = math.ceil(len(subtitle_dicts) / batch_size)
 
-    max_concurrent = 3  # 并行批次数
+    # 动态分批（按字符数）
+    batches = _dynamic_batches(subtitle_dicts, max_chars=3000)
+    total_batches = len(batches)
+    # 编号
+    numbered_batches = [(i + 1, b) for i, b in enumerate(batches)]
 
-    def event_generator():
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        client = OpenAI(api_key=api_key, base_url=api_base)
+    semaphore = asyncio.Semaphore(3)
+
+    async def event_generator():
+        client = AsyncOpenAI(api_key=api_key, base_url=api_base)
         yield f"data: {json.dumps({'type': 'start', 'total_batches': total_batches})}\n\n"
 
-        # 构建所有批次
-        batches = []
-        for i in range(0, len(subtitle_dicts), batch_size):
-            batch = subtitle_dicts[i:i + batch_size]
-            batch_num = i // batch_size + 1
-            batches.append((batch_num, batch))
+        # 提交所有批次为异步任务
+        tasks = {
+            asyncio.create_task(_call_ai_batch_async(client, system_prompt, batch, model_name, semaphore)): (num, batch)
+            for num, batch in numbered_batches
+        }
 
-        # 分组并行处理，每组 max_concurrent 个批次
-        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-            for group_start in range(0, len(batches), max_concurrent):
-                group = batches[group_start:group_start + max_concurrent]
-                print(f"  AI 推荐流式：并行处理第 {group[0][0]}-{group[-1][0]}/{total_batches} 批")
-
-                # 提交本组所有批次
-                future_to_batch = {
-                    executor.submit(_call_ai_batch, client, system_prompt, b, model_name): (num, b)
-                    for num, b in group
-                }
-
-                # 按批次号顺序 yield 结果
-                results = {}
-                for future in as_completed(future_to_batch):
-                    batch_num, batch = future_to_batch[future]
-                    items, error = future.result()
-                    if not items:
-                        items = [{"index": item["index"], "include": False, "reason": f"处理失败: {error}"} for item in batch]
-                    results[batch_num] = items
-
-                for num, _ in group:
-                    yield f"data: {json.dumps({'type': 'batch', 'batch': num, 'items': results[num]}, ensure_ascii=False)}\n\n"
+        completed = 0
+        for coro in asyncio.as_completed(tasks):
+            num, batch = tasks[coro]
+            items, error = await coro
+            if not items:
+                items = [{"index": item["index"], "include": False, "reason": f"处理失败: {error}"} for item in batch]
+            completed += 1
+            print(f"  AI 推荐流式：第 {num}/{total_batches} 批完成 ({completed}/{total_batches})")
+            yield f"data: {json.dumps({'type': 'batch', 'batch': num, 'items': items}, ensure_ascii=False)}\n\n"
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
