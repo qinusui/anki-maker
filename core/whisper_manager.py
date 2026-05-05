@@ -1,7 +1,6 @@
 """
-Whisper 插件管理模块
-主程序检测 whisper_plugin/ 目录是否存在来启用转录功能，
-不再依赖系统 Python 的 pip 安装。
+Whisper 管理模块
+faster-whisper 已内置在主程序中，无需额外安装插件。
 """
 import os
 import sys
@@ -12,77 +11,27 @@ from typing import Optional, Any
 logger = logging.getLogger(__name__)
 
 
-def _get_install_dir() -> str:
-    """获取安装目录（exe 所在目录）"""
-    if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-def get_whisper_plugin_path() -> str:
-    """获取 whisper 插件目录路径"""
-    return os.path.join(_get_install_dir(), "whisper_plugin")
-
-
-def whisper_available() -> bool:
-    """检测 whisper 插件是否已安装"""
-    plugin = get_whisper_plugin_path()
-    # 检查 venv 中的 Python 和 faster_whisper 包
-    if os.name == 'nt':
-        python_path = os.path.join(plugin, "Scripts", "python.exe")
-    else:
-        python_path = os.path.join(plugin, "bin", "python")
-    return os.path.isfile(python_path)
-
-
-def _get_plugin_python() -> str:
-    """获取插件 venv 中的 Python 路径"""
-    plugin = get_whisper_plugin_path()
-    if os.name == 'nt':
-        return os.path.join(plugin, "Scripts", "python.exe")
-    return os.path.join(plugin, "bin", "python")
-
-
 def is_whisper_installed() -> bool:
-    """检查 whisper 是否可用（安装包用插件检测，开发环境直接导入）"""
-    # 非打包环境：直接尝试导入
-    if not getattr(sys, 'frozen', False):
-        try:
-            import importlib
-            importlib.import_module("faster_whisper")
-            return True
-        except ImportError:
-            return False
-
-    # 打包环境：通过插件 venv 检测
-    if not whisper_available():
-        return False
-    python_path = _get_plugin_python()
+    """检查 whisper 是否可用"""
     try:
-        result = subprocess.run(
-            [python_path, "-c", "import faster_whisper; print('ok')"],
-            capture_output=True, text=True, timeout=15
-        )
-        return result.returncode == 0
-    except Exception:
+        import importlib
+        importlib.import_module("faster_whisper")
+        return True
+    except ImportError:
         return False
 
 
 def install_whisper() -> tuple[bool, str]:
     """
     安装 faster-whisper
-    - 安装包模式：在插件 venv 内安装
+    - 打包模式：已内置，无需安装
     - 开发模式：在当前 Python 环境安装
     返回 (是否安装成功, 错误信息)
     """
-    # 非打包环境：直接用当前 Python
-    if not getattr(sys, 'frozen', False):
-        python_path = sys.executable
-    else:
-        python_path = _get_plugin_python()
-        if not os.path.isfile(python_path):
-            return False, "Whisper 插件未安装，请先安装 ClipLingo_Whisper_Setup.exe"
+    if getattr(sys, 'frozen', False):
+        return True, "Whisper 已内置，请直接使用"
 
+    # 开发模式：用 pip 安装
     _PIP_SOURCES = [
         ("https://pypi.org/simple/", "pypi.org"),
         ("https://pypi.tuna.tsinghua.edu.cn/simple", "pypi.tuna.tsinghua.edu.cn"),
@@ -94,7 +43,7 @@ def install_whisper() -> tuple[bool, str]:
         logger.info(f"尝试从 {source_url} 安装 faster-whisper...")
         try:
             result = subprocess.run(
-                [python_path, "-m", "pip", "install",
+                [sys.executable, "-m", "pip", "install",
                  "faster-whisper",
                  "-i", source_url,
                  "--trusted-host", host,
@@ -114,7 +63,7 @@ def install_whisper() -> tuple[bool, str]:
 
 
 def get_whisper() -> Optional[Any]:
-    """获取 faster_whisper 模块（非打包环境用）"""
+    """获取 faster_whisper 模块"""
     try:
         import importlib
         return importlib.import_module("faster_whisper")
@@ -124,6 +73,12 @@ def get_whisper() -> Optional[Any]:
 
 def load_model(model_name: str = "base") -> Optional[Any]:
     """加载 faster-whisper WhisperModel"""
+    # 确保 huggingface token 文件存在，避免 OSError
+    token_path = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "token")
+    if not os.path.exists(token_path):
+        os.makedirs(os.path.dirname(token_path), exist_ok=True)
+        open(token_path, "w").close()
+
     faster_whisper = get_whisper()
     if faster_whisper is None:
         return None

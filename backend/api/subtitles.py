@@ -679,97 +679,9 @@ def _whisper_subprocess(video_path: str, srt_path: str, model_name: str, languag
         _json.dump({"segment_count": len(segments)}, f)
 
 
-def _run_transcribe_task_frozen(task_id: str, video_path_str: str, srt_path_str: str,
-                                model_name: str, language: str, min_duration: float):
-    """冻结环境：通过 whisper_plugin 的 venv Python 运行 whisper_runner.py"""
-    import time as _time
-    from core.whisper_manager import _get_plugin_python, whisper_available
-
-    def update(status, step, message):
-        with _transcribe_lock:
-            _transcribe_store[task_id] = {"status": status, "step": step, "total_steps": 4, "message": message}
-
-    try:
-        update("processing", 1, "准备转录...")
-
-        if not whisper_available():
-            raise RuntimeError("Whisper 插件未安装，请先安装 ClipLingo_Whisper_Setup.exe")
-
-        python_path = _get_plugin_python()
-
-        runner_script = str(Path(_PROJECT_ROOT) / "core" / "whisper_runner.py")
-        lang_arg = language if language else "None"
-
-        update("processing", 1, f"启动 Whisper 转录（{model_name}）...")
-
-        cmd = [python_path, runner_script, video_path_str, srt_path_str, model_name, lang_arg]
-        logger.info(f"Whisper subprocess cmd: {cmd}")
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
-
-        transcribe_start = 0
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-                step = msg.get("step")
-                if step == "loading":
-                    update("processing", 1, msg.get("message", "加载模型中..."))
-                elif step == "done":
-                    break
-            except json.JSONDecodeError:
-                continue
-            if not transcribe_start:
-                transcribe_start = _time.time()
-                update("processing", 2, "转录中，请耐心等待...")
-
-        proc.wait(timeout=1800)
-
-        if proc.returncode != 0:
-            stderr = proc.stderr.read()
-            logger.error(f"Whisper subprocess failed (rc={proc.returncode}): {stderr[:500]}")
-            raise RuntimeError(f"Whisper 转录失败: {stderr[:300]}")
-
-        update("processing", 3, "处理字幕...")
-
-        srt_subtitles = parse_srt(srt_path_str)
-        filtered = filter_short_subtitles(srt_subtitles, min_duration)
-
-        subtitle_items = [SubtitleItem.from_subtitle(sub) for sub in filtered]
-
-        with _transcribe_lock:
-            _transcribe_store[task_id] = {
-                "status": "completed",
-                "step": 4,
-                "total_steps": 4,
-                "message": f"转录完成，共 {len(subtitle_items)} 条字幕",
-                "result": {
-                    "subtitles": [s.model_dump() for s in subtitle_items],
-                    "total": len(srt_subtitles),
-                    "filtered": len(subtitle_items)
-                }
-            }
-
-    except Exception as e:
-        logger.exception("Whisper 转录失败")
-        update("error", 0, f"转录失败: {str(e)}")
-
-    finally:
-        Path(video_path_str).unlink(missing_ok=True)
-        Path(srt_path_str).unlink(missing_ok=True)
-
-
 def _run_transcribe_task(task_id: str, video_path_str: str, srt_path_str: str,
                          model_name: str, language: str, min_duration: float):
     """后台执行转录"""
-    # 冻结环境用子进程调用系统 Python
-    if getattr(sys, 'frozen', False):
-        return _run_transcribe_task_frozen(task_id, video_path_str, srt_path_str,
-                                           model_name, language, min_duration)
-
     import multiprocessing
     import time as _time
 

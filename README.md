@@ -26,16 +26,15 @@
 
 **安装版（推荐）：**
 
-- `ClipLingo_Setup.exe` — 主程序安装包（~230MB）
-- `ClipLingo_Whisper_Setup.exe` — Whisper 转录插件安装包，可选（~53MB）
+- `ClipLingo_Setup.exe` — 主程序安装包，内置 Whisper 转录（~700MB）
 
-安装后启动 `ClipLingo.exe`，浏览器访问 `http://localhost:8000`。转录插件需安装到同一目录。
+安装后启动 `ClipLingo.exe`，浏览器访问 `http://localhost:8000`。
 
 **免安装版：**
 
-- `ClipLingo_portable.zip` — 完整版，内置 Whisper（~700MB）
+- `ClipLingo_portable.zip` — 解压即用（~700MB）
 
-解压后运行 `ClipLingo.exe`，浏览器访问 `http://localhost:8000`。
+运行 `ClipLingo.exe`，浏览器访问 `http://localhost:8000`。
 
 **Docker：**
 
@@ -58,6 +57,15 @@ scripts\start.bat  # Windows
 ```
 
 需要 Python 3.10+、ffmpeg（PATH 中）、Node.js 18+。
+
+## 核心功能
+
+- **Whisper 转录**：内置 faster-whisper，支持视频直接转录为字幕（英/日/韩等多语言）
+- **AI 智能筛选**：自动评估每条字幕的学习价值，推荐值得记忆的句子
+- **学习进度追踪**：本地 SQLite 记录已学单词，重复运行时自动跳过
+- **规则筛选**：时长范围、已学排除、关键词黑名单，快速过滤大量字幕
+- **多样式卡片**：句卡（原文+翻译）和词卡（单词+释义），预览即所得
+- **内嵌字幕提取**：自动检测视频内嵌软字幕，无需手动准备 SRT 文件
 
 ## 配置
 
@@ -91,8 +99,10 @@ scripts\start.bat  # Windows
 
 **两种使用模式：**
 
-- **基础模式**（无需 AI）：上传文件 → 手动勾选字幕 → 生成卡片（卡片包含原文、音频、截图）
-- **AI 模式**（可选）：配置 AI → 使用「AI 推荐」筛选 → 生成卡片（额外包含翻译和注释）
+- **基础模式**（无需 AI）：上传视频 → 自动提取/转录字幕 → 规则筛选或手动勾选 → 生成卡片
+- **AI 模式**（可选）：配置 AI → 一键「AI 推荐」智能筛选 → 生成卡片（额外包含翻译和注释）
+
+> 已学单词会自动记录，下次运行时 AI 推荐和规则筛选会自动跳过。
 
 ## 卡片格式
 

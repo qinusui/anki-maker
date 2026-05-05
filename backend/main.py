@@ -213,6 +213,9 @@ def _open_browser():
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
+
     # Docker 或 PyInstaller 中禁用 reload
     is_docker = os.environ.get('DOCKER_CONTAINER') == '1'
     is_frozen = getattr(sys, 'frozen', False)

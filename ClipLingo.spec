@@ -6,6 +6,10 @@ block_cipher = None
 # 获取 frontend/dist 的绝对路径
 frontend_dist = os.path.join(os.path.dirname(os.path.abspath(SPEC)), 'frontend', 'dist')
 
+# faster_whisper 的 VAD 模型资源
+import faster_whisper as _fw
+fw_assets = os.path.join(os.path.dirname(_fw.__file__), 'assets')
+
 a = Analysis(
     ['backend/main.py'],
     pathex=['backend', '.'],
@@ -16,6 +20,7 @@ a = Analysis(
     datas=[
         (frontend_dist, 'frontend/dist'),
         ('core', 'core'),
+        (fw_assets, 'faster_whisper/assets'),
     ],
     hiddenimports=[
         'fastapi',
@@ -38,6 +43,11 @@ a = Analysis(
         'core.pack_apkg',
         'core.parse_srt',
         'core.whisper_manager',
+        'faster_whisper',
+        'ctranslate2',
+        'onnxruntime',
+        'numpy',
+        'huggingface_hub',
         'openai',
         'genanki',
         'pysrt',
@@ -60,7 +70,6 @@ a = Analysis(
         'paddlepaddle', 'paddleocr', 'cv2', 'opencv',
         'whisper', 'openai-whisper',
         'torch', 'torchvision', 'torchaudio',
-        'numpy', 'pandas', 'numba', 'llvmlite',
         'PIL', 'pillow',
     ],
     win_no_prefer_redirects=False,

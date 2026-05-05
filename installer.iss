@@ -17,7 +17,7 @@ SetupIconFile=frontend\public\favicon.ico
 DisableDirPage=no
 
 [Files]
-; 主程序（PyInstaller 打包产物，含 _internal/bin/ 下的 ffmpeg）
+; 主程序（PyInstaller 打包产物，含 ffmpeg + faster-whisper）
 Source: "dist\ClipLingo\*"; DestDir: "{app}"; Flags: recursesubdirs
 
 [Icons]
